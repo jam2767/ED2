@@ -2,7 +2,6 @@
 
 # RAMS root directory.
 #
-
 EDBRAMS_ROOT=../../../../EDBRAMS
 
 # MCD: EDBRAMS_ROOT=/n/Moorcroft_Lab/Users/mcd/EDBRAMS

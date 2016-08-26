@@ -8,16 +8,37 @@
 #  ~ x.obs          -- the observed values of x                                            #
 #  ~ n.parameters   -- number of parameters (if the number of parameters is unknown, we    #
 #                      don't assume any parameters).                                       #
+#  ~ out.dfr        -- output as a data frame? (FALSE returns a list).                     #
 #------------------------------------------------------------------------------------------#
-test.goodness <<- function(x.mod,x.obs,n.parameters=NULL){
+test.goodness <<- function(x.mod,x.obs,x.sigma=NULL,n.parameters=NULL,out.dfr=FALSE){
 
 
    #---- Crash if the x.mod and x.obs don't have the same size and class. -----------------#
    dlength = (length(x.mod) - length(x.obs)) != 0
-   dclass  = any(sort(is(x.mod)) != sort(is(x.obs)))
+   dclass  = typeof(x.mod) != typeof(x.obs)
    if (dlength || dclass){
       stop (" x.mod and x.obs must have the same size and class","\n")
    }#end if
+   #---------------------------------------------------------------------------------------#
+
+
+   #---- Crash if the x.sigma and x.obs don't have the same size and class. ---------------#
+   if (! is.null(x.sigma)){
+      dlength = (length(x.mod) - length(x.sigma)) != 0
+      dclass  = typeof(x.mod) != typeof(x.sigma)
+      if (dlength || dclass){
+         stop (" x.mod and x.sigma must have the same size and class","\n")
+      }#end if
+      #------------------------------------------------------------------------------------#
+
+
+      #----- Find associated weights, and re-create the vectors x.mod and x.obs. ----------#
+      x.wgt      = ifelse(x.sigma %>% 0, 1. / x.sigma^2, 0)
+      sel        = x.wgt %>% 0
+      x.obs      = x.obs[sel] * sqrt(x.wgt[sel])
+      x.mod      = x.mod[sel] * sqrt(x.wgt[sel])
+      #------------------------------------------------------------------------------------#
+   }#end if (! is.null(x.sigma)
    #---------------------------------------------------------------------------------------#
 
 
@@ -36,7 +57,7 @@ test.goodness <<- function(x.mod,x.obs,n.parameters=NULL){
    if (is.null(n.parameters)){
       df.err = n.ok - 1
    }else{
-      df.err = n.ok - n.parameters - 1
+      df.err = n.ok - n.parameters
    }#end if
    #---------------------------------------------------------------------------------------#
 
@@ -51,7 +72,6 @@ test.goodness <<- function(x.mod,x.obs,n.parameters=NULL){
       #------------------------------------------------------------------------------------#
       x.mod.ok = x.mod[sel]
       x.obs.ok = x.obs[sel]
-      x.tot.ok = x.obs.ok - mean(x.obs.ok)
       x.res.ok = x.obs.ok - x.mod.ok
       #------------------------------------------------------------------------------------#
 
@@ -75,9 +95,11 @@ test.goodness <<- function(x.mod,x.obs,n.parameters=NULL){
       #     Find the mean bias, standard deviation of the residuals, and the support for   #
       # the errors being normally distributed around the mean.                             #
       #------------------------------------------------------------------------------------#
-      bias        = -res.moment["mean"]
-      sigma       = sqrt(res.moment["variance"])
-      lsq.lnlike  = sum(dnorm(x.res.ok,mean=0,sd=sigma,log=TRUE))
+      bias         = -res.moment["mean"]
+      sigma        = sqrt(res.moment["variance"])
+      names(bias)  = NULL
+      names(sigma) = NULL
+      lsq.lnlike   = sum(dnorm(x.res.ok,mean=0,sd=sigma,log=TRUE))
       #------------------------------------------------------------------------------------#
 
 
@@ -97,9 +119,11 @@ test.goodness <<- function(x.mod,x.obs,n.parameters=NULL){
       # parameters).  Otherwise we can't correct, so we just compare the sum of the        #
       # variances.                                                                         #
       #------------------------------------------------------------------------------------#
+      x.tot.ok  = x.obs.ok - mean(x.obs.ok)
       ss.tot    = sum(x.tot.ok^2)
       ss.err    = sum(x.res.ok^2)
       r.squared = 1. - df.tot * ss.err / ( df.err * ss.tot )
+      if (! is.finite(r.squared)) browser()
       #------------------------------------------------------------------------------------#
 
 
@@ -108,7 +132,8 @@ test.goodness <<- function(x.mod,x.obs,n.parameters=NULL){
       #     Find the estimator's fraction of variance unexplained (FVU).  Because we use   #
       # MSE instead of ss.err, this is not 1 - R2.                                         #
       #------------------------------------------------------------------------------------#
-      fvue = mse / obs.moment["variance"]
+      fvue        = mse / obs.moment["variance"]
+      names(fvue) = NULL
       #------------------------------------------------------------------------------------#
 
 
@@ -127,9 +152,10 @@ test.goodness <<- function(x.mod,x.obs,n.parameters=NULL){
       #------------------------------------------------------------------------------------#
       #      Run the Kolmogorov-Smirnov test to compare the distributions.                 #
       #------------------------------------------------------------------------------------#
-      this.ks      = ks.test(x=x.obs.ok,y=x.mod.ok)
-      ks.statistic = this.ks$statistic
-      ks.p.value   = this.ks$p.value
+      this.ks             = ks.test(x=x.obs.ok,y=x.mod.ok)
+      ks.statistic        = this.ks$statistic
+      ks.p.value          = this.ks$p.value
+      names(ks.statistic) = NULL
       #------------------------------------------------------------------------------------#
    }else{
       #------------------------------------------------------------------------------------#
@@ -159,26 +185,60 @@ test.goodness <<- function(x.mod,x.obs,n.parameters=NULL){
    #---------------------------------------------------------------------------------------#
    #     Return everything to the user.                                                    #
    #---------------------------------------------------------------------------------------#
-   ans = list ( n            = n.ok 
-              , df.tot       = df.tot
-              , df.err       = df.err
-              , obs.moment   = obs.moment
-              , mod.moment   = mod.moment
-              , res.moment   = res.moment
-              , bias         = bias
-              , sigma        = sigma
-              , lsq.lnlike   = lsq.lnlike
-              , mse          = mse
-              , rmse         = rmse
-              , ss.tot       = ss.tot
-              , ss.err       = ss.err
-              , r.squared    = r.squared
-              , fvue         = fvue
-              , sw.statistic = sw.statistic
-              , sw.p.value   = sw.p.value
-              , ks.statistic = ks.statistic
-              , ks.p.value   = ks.p.value
-              )#end list
+   if (out.dfr){
+      ans = data.frame( n            = n.ok
+                      , p            = n.ok - df.err
+                      , df.tot       = df.tot
+                      , df.err       = df.err
+                      , obs.mean     = obs.moment[1]
+                      , obs.sdev     = sqrt(obs.moment[2])
+                      , obs.skew     = obs.moment[3]
+                      , obs.kurt     = obs.moment[4]
+                      , mod.mean     = mod.moment[1]
+                      , mod.sdev     = sqrt(mod.moment[2])
+                      , mod.skew     = mod.moment[3]
+                      , mod.kurt     = mod.moment[4]
+                      , res.mean     = res.moment[1]
+                      , res.sdev     = sqrt(res.moment[2])
+                      , res.skew     = res.moment[3]
+                      , res.kurt     = res.moment[4]
+                      , bias         = bias
+                      , sigma        = sigma
+                      , lsq.lnlike   = lsq.lnlike
+                      , mse          = mse
+                      , rmse         = rmse
+                      , ss.tot       = ss.tot
+                      , ss.err       = ss.err
+                      , r.squared    = r.squared
+                      , fvue         = fvue
+                      , sw.statistic = sw.statistic
+                      , sw.p.value   = sw.p.value
+                      , ks.statistic = ks.statistic
+                      , ks.p.value   = ks.p.value
+                      )#end list
+   }else{
+      ans = list ( n            = n.ok 
+                 , p            = n.ok - df.err
+                 , df.tot       = df.tot
+                 , df.err       = df.err
+                 , obs.moment   = obs.moment
+                 , mod.moment   = mod.moment
+                 , res.moment   = res.moment
+                 , bias         = bias
+                 , sigma        = sigma
+                 , lsq.lnlike   = lsq.lnlike
+                 , mse          = mse
+                 , rmse         = rmse
+                 , ss.tot       = ss.tot
+                 , ss.err       = ss.err
+                 , r.squared    = r.squared
+                 , fvue         = fvue
+                 , sw.statistic = sw.statistic
+                 , sw.p.value   = sw.p.value
+                 , ks.statistic = ks.statistic
+                 , ks.p.value   = ks.p.value
+                 )#end list
+   }#end if
    return(ans)
    #---------------------------------------------------------------------------------------#
 }#end function

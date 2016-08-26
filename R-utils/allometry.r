@@ -1,6 +1,6 @@
 #==========================================================================================#
 #==========================================================================================#
-h2dbh = function(h,ipft){
+h2dbh <<- function(h,ipft){
 
    if (length(ipft) == 1){
      zpft = rep(ipft,times=length(h))
@@ -31,7 +31,7 @@ h2dbh = function(h,ipft){
 
 #==========================================================================================!
 #==========================================================================================!
-dbh2h = function(ipft,dbh){
+dbh2h <<- function(ipft,dbh){
 
    if (length(ipft) == 1){
      zpft = rep(ipft,times=length(dbh))
@@ -66,7 +66,7 @@ dbh2h = function(ipft,dbh){
 
 #==========================================================================================#
 #==========================================================================================#
-dbh2bl = function(dbh,ipft){
+dbh2bl <<- function(dbh,ipft){
 
    if (length(ipft) == 1){
      zpft = rep(ipft,times=length(dbh))
@@ -92,7 +92,7 @@ dbh2bl = function(dbh,ipft){
 
 #==========================================================================================#
 #==========================================================================================#
-dbh2bd = function(dbh,ipft){
+dbh2bd <<- function(dbh,ipft){
    if (length(ipft) == 1){
      zpft = rep(ipft,times=length(dbh))
    }else{
@@ -121,7 +121,7 @@ dbh2bd = function(dbh,ipft){
 #==========================================================================================#
 #    Canopy Area allometry from Dietze and Clark (2008).                                   #
 #------------------------------------------------------------------------------------------#
-dbh2ca = function(dbh,ipft){
+dbh2ca <<- function(dbh,ipft){
    if (length(ipft) == 1){
      zpft = rep(ipft,times=length(dbh))
    }else{
@@ -154,7 +154,7 @@ dbh2ca = function(dbh,ipft){
 #==========================================================================================#
 #    Wood area index from Ahrends et al. (2010).                                           #
 #------------------------------------------------------------------------------------------#
-dbh2wai = function(dbh,ipft,chambers=FALSE){
+dbh2wai <<- function(dbh,ipft,chambers=FALSE){
    if (length(ipft) == 1){
      zpft = rep(ipft,times=length(dbh))
    }else{
@@ -208,7 +208,7 @@ dbh2wai = function(dbh,ipft,chambers=FALSE){
 #==========================================================================================#
 #    Standing volume of a tree.                                                            #
 #------------------------------------------------------------------------------------------#
-dbh2vol = function(hgt,dbh,ipft){
+dbh2vol <<- function(hgt,dbh,ipft){
    vol  = pft$b1Vol[ipft] * hgt * dbh ^ pft$b2Vol[ipft]
    return(vol)
 }#end function dbh2ca
@@ -224,7 +224,7 @@ dbh2vol = function(hgt,dbh,ipft){
 #==========================================================================================#
 #    Rooting depth.                                                                        #
 #------------------------------------------------------------------------------------------#
-dbh2rd = function(hgt,dbh,ipft){
+dbh2rd <<- function(hgt,dbh,ipft){
    if (iallom %in% c(0)){
       #------------------------------------------------------------------------------------#
       #    Original ED-2.1 (I don't know the source for this equation, though).            #
@@ -282,7 +282,7 @@ h2crownbh <<- function (height,ipft){
 #      predicting foliar biomass and leaf area:sapwood area ratio from tree height in five #
 #      Costa Rican rain forest species.  Tree Physiol. 28, 1601-1608.                      #
 #------------------------------------------------------------------------------------------#
-dbh2bl.alt = function (dbh,genus){
+dbh2bl.alt <<- function (dbh,genus){
    #----- Make genus case insensitive. ----------------------------------------------------#
    genushere = tolower(genus)
    #---------------------------------------------------------------------------------------#
@@ -402,5 +402,155 @@ dbh2agb.baker <<- function(dbh,wdens,allom="baker.chave"){
    #---------------------------------------------------------------------------------------#
    return(agb)
 }#end if
+#==========================================================================================#
+#==========================================================================================#
+
+
+
+
+
+
+#==========================================================================================#
+#==========================================================================================#
+#     We find the dbh based on above-ground biomass and wood density, following the        #
+# allometry proposed by:                                                                   #
+#                                                                                          #
+# Baker, T. R., and co-authors, 2004: Variation in wood density determines spatial         #
+#     patterns in Amazonian forest biomass. Global Change Biol., 10, 545-562.              #
+#                                                                                          #
+# Chave, J., B. Riera, M.A. Dubois, 2001: Estimation of biomass in a neotropical forest of #
+#     French Guiana: spatial and temporal variability.  J. Trop. Ecol., 17, 79-96.         #
+#------------------------------------------------------------------------------------------#
+agb2dbh.baker <<- function(agb,wdens,allom="baker.chave"){
+
+
+   ln.agb  = log(agb)
+   ln.rhon = log(wdens / 0.58 / C2B)
+
+
+   if (allom == "baker.chave"){
+      #------ Use Chave's based function (equation 2, Baker et al., 2004). ----------------#
+      dbh = exp( 1 / 2.42 * ( ln.agb - ln.rhon + 2.00 ) )
+      #------------------------------------------------------------------------------------#
+   }else if (allom == "baker.chambers"){
+      #------ Use Chambers' function. -----------------------------------------------------#
+      stop("Cannot invert Chambers' equation...")
+      #------------------------------------------------------------------------------------#
+   }else if (allom == "chave.2006"){
+      #------ Use Chambers' function. -----------------------------------------------------#
+      stop ("Cannot invert Chave 2006 equation...")
+      #------------------------------------------------------------------------------------#
+   }#end if
+   #---------------------------------------------------------------------------------------#
+   return(dbh)
+}#end if
+#==========================================================================================#
+#==========================================================================================#
+
+
+
+
+
+
+#==========================================================================================#
+#==========================================================================================#
+#     Biomass allometry that is used by Sustainable Landscapes.  Results are always in     #
+# kgC/plant.                                                                               #
+#                                                                                          #
+# References:                                                                              #
+#                                                                                          #
+# Chave, J., and co-authors, 2014: Improved allometric models to estimate tha aboveground  #
+#     biomass of tropical trees.  Glob. Change Biol., 20, 3177-3190                        #
+#     doi:10.1111/gcb.12629                                                                #
+#                                                                                          #
+# Goodman, R., and co-authors, 2013: Amazon palm biomass and allometry.  Forest Ecol.      #
+#     Manag., 310, 994-1004. doi:10.1016/j.foreco.2013.09.045                              #
+#                                                                                          #
+# Palace, M., and co-authors, 2007: Necromass in undisturbed ad logged forests in the      #
+#     Brazilian Amazon.  Forest Ecol. Manag., 238, 309-318.                                #
+#     doi:10.1016/j.foreco.2006.10.026                                                     #
+#                                                                                          #
+# Schnitzer, S. A., and co-authors, 2006: Censusing and measuring lianas: a quantitative   #
+#     comparison of the common methods.  Biotropica, 38, 581-591                           #
+#     doi:10.1111/j.1744-7429.2006.00187.x                                                 #
+#                                                                                          #
+#------------------------------------------------------------------------------------------#
+agb.SL <<- function(dbh,height,wdens,type=NULL,dead=NULL){
+   #---------------------------------------------------------------------------------------#
+   #     "type" and "dead" may not be present, in which case we use dummy values.          #
+   #---------------------------------------------------------------------------------------#
+   if (is.null(type)) type = rep(  "O",times=length(dbh))
+   if (is.null(dead)) dead = rep(FALSE,times=length(dbh))
+   #---------------------------------------------------------------------------------------#
+
+
+
+   #---------------------------------------------------------------------------------------#
+   #     Make sure all terms have the same length.                                         #
+   #---------------------------------------------------------------------------------------#
+   lens = unique(c(length(dbh),length(height),length(wdens),length(type),length(dead)))
+   if ( length(lens) != 1 ){
+      cat("-----------------------------------------------------------","\n",sep="")
+      cat("   Variables don't have the same length."                   ,"\n",sep="")
+      cat("   DBH    = ",length(dbh)                                   ,"\n",sep="")
+      cat("   HEIGHT = ",length(height)                                ,"\n",sep="")
+      cat("   WDENS  = ",length(wdens)                                 ,"\n",sep="")
+      cat("   TYPE   = ",length(type)                                  ,"\n",sep="")
+      cat("   DEAD   = ",length(dead)                                  ,"\n",sep="")
+      cat("-----------------------------------------------------------","\n",sep="")
+      stop(" Incorrect input data.")
+   }else{
+      fine.dbh    = is.numeric  (dbh)    || all(is.na(dbh   ))
+      fine.height = is.numeric  (height) || all(is.na(height))
+      fine.wdens  = is.numeric  (wdens)  || all(is.na(wdens ))
+      fine.type   = is.character(type)   || all(is.na(type  ))
+      fine.dead   = is.logical  (dead)   || all(is.na(dead  ))
+      if (! all(c(fine.dbh,fine.height,fine.wdens,fine.type,fine.dead))){
+         cat("-----------------------------------------------------------","\n",sep="")
+         cat("   Not all variables have the correct type."                ,"\n",sep="")
+         cat("   DBH    (numeric)   = ",fine.dbh                          ,"\n",sep="")
+         cat("   HEIGHT (numeric)   = ",fine.height                       ,"\n",sep="")
+         cat("   WDENS  (numeric)   = ",fine.wdens                        ,"\n",sep="")
+         cat("   TYPE   (character) = ",fine.type                         ,"\n",sep="")
+         cat("   DEAD   (logical)   = ",fine.dead                         ,"\n",sep="")
+         cat("-----------------------------------------------------------","\n",sep="")
+         stop(" Incorrect data types.")
+      }#end if (! all(c(fine.dbh,fine.height,fine.wdens,fine.type,fine.dead)))
+   }#end if ( length(lens) != 1)
+   #---------------------------------------------------------------------------------------#
+
+   #----- Initialise the output. ----------------------------------------------------------#
+   agb = NA * dbh
+   #---------------------------------------------------------------------------------------#
+   
+   #---------------------------------------------------------------------------------------#
+   #     Find the possible statuses, then choose the best equation.                        #
+   #---------------------------------------------------------------------------------------#
+   tree  = type %in% "O" & (! dead)
+   palm  = type %in% "P"
+   liana = type %in% "L"
+   dead  = type %in% "O" & dead
+   #---------------------------------------------------------------------------------------#
+
+   #---------------------------------------------------------------------------------------#
+   #     AGB by type.                                                                      #
+   #---------------------------------------------------------------------------------------#
+   #----- Living tree: Chave et al. (2014). -----------------------------------------------#
+   agb[tree ] = 0.0673 * (wdens[tree]*dbh[tree]^2*height[tree])^0.976 / C2B
+   #----- Palm: Goodman et al. (2013). ----------------------------------------------------#
+   agb[palm ] = exp(-3.448+0.588/2) * dbh[palm]^2.7483 / C2B
+   #----- Liana: Schnitzer et al. (2006). -------------------------------------------------#
+   agb[liana] = exp(-0.968) * dbh[liana]^2.657 / C2B
+   #----- Dead trees: Palace et al. (2007). -----------------------------------------------#
+   v1 = 0.091
+   v0 = 0.01 / (1.3^-v1)
+   a0 = 0.25 * pi * v0^2 / (1. - 2*v1)
+   a1 = 1 - 2*v1
+   agb[dead] = 1000. * wdens[dead] * a0 * dbh[dead]^2 * height[dead]^a1 / C2B
+   #---------------------------------------------------------------------------------------#
+
+
+   return(agb)
+}#end function agb.SL
 #==========================================================================================#
 #==========================================================================================#

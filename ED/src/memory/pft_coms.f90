@@ -99,19 +99,27 @@ module pft_coms
    !    This is the list of PFTs that are included.  0 means off, 1 means on.              !
    !---------------------------------------------------------------------------------------!
    logical, dimension(n_pft) :: include_pft
+   !---------------------------------------------------------------------------------------!
+
+
 
    !---------------------------------------------------------------------------------------!
-   !    This is the list of grass PFTs that may be included in agricultural patches.  Only !
-   ! PFTs included here and at the include_these_pft will be used for agricultural         !
-   ! patches.                                                                              !
-   !---------------------------------------------------------------------------------------!
-   integer, dimension(n_pft) :: grass_pft
-
-   !---------------------------------------------------------------------------------------!
-   !    This flag specifies what non-agricutural PFTs (i.e., grass)  can grow on agri-     !
-   ! culture patches.  Set to 1 if you want to include this PFT on agriculture patches     !
+   !    This flag specifies which PFTs are allowed to grow on agriculture patches.         !
+   ! Zero means the PFT is forbidden, 1 means that the PFT is allowed.                     !
    !---------------------------------------------------------------------------------------!
    logical, dimension(n_pft) :: include_pft_ag
+   !---------------------------------------------------------------------------------------!
+
+
+
+   !---------------------------------------------------------------------------------------!
+   !    This flag specifies which PFTs are allowed to grow on forest plantation patches.   !
+   ! Zero means the PFT is forbidden, 1 means that the PFT is allowed.                     !
+   !---------------------------------------------------------------------------------------!
+   logical, dimension(n_pft) :: include_pft_fp
+   !---------------------------------------------------------------------------------------!
+
+
 
    !---------------------------------------------------------------------------------------!
    !    The following logical flags will tell whether the PFTs are tropical and also       !
@@ -120,6 +128,9 @@ module pft_coms
    !---------------------------------------------------------------------------------------!
    logical, dimension(n_pft)    :: is_tropical
    logical, dimension(n_pft)    :: is_grass
+   !---------------------------------------------------------------------------------------!
+
+
    !=======================================================================================!
    !=======================================================================================!
 
@@ -277,6 +288,11 @@ module pft_coms
    !---------------------------------------------------------------------------------------!
 
    !---------------------------------------------------------------------------------------!
+   !     This variable shifts the inflection point for the relative carbon balance curve.  !
+   !---------------------------------------------------------------------------------------!
+   real, dimension(n_pft) :: mort0
+
+   !---------------------------------------------------------------------------------------!
    !     This variable controls the time scale at which plants out of carbon balance       !
    ! suffer mortality [1/years].                                                           !
    !---------------------------------------------------------------------------------------!
@@ -293,6 +309,16 @@ module pft_coms
    ! [1/years].                                                                            !
    !---------------------------------------------------------------------------------------!
    real, dimension(n_pft) :: mort3 
+
+   !---------------------------------------------------------------------------------------!
+   ! This is the way to initialize mort3 through hard parameterization (ie. non dependent) !
+   ! the atlernative is to let mort3 for tropical pfts be controlled by wood density (rho),!
+   ! a slope parameter (m3_slope) and a scale parameter (m3_scale).                        !
+   !---------------------------------------------------------------------------------------!
+   real, dimension(n_pft) :: mort3_pft_init
+
+   real :: m3_scale
+   real :: m3_slope
 
    !---------------------------------------------------------------------------------------!
    !     This variable sets up the relative carbon balance when plants are experiencing    !
@@ -388,6 +414,8 @@ module pft_coms
    real   , dimension(n_pft)    :: rho
    !----- Specific Leaf Area (m²leaf/kg_C]. -----------------------------------------------!
    real   , dimension(n_pft)    :: SLA
+   !----- The initialization parameters for SLA:  SLA = sla_pft_init for non-trop PFTs
+   real   , dimension(n_pft)    :: sla_pft_init
    !----- Mass ratio between fine root and leaves [kg_fine_roots]/[kg_leaves]. ------------!
    real   , dimension(n_pft)    :: q
    !----- Mass ratio between sapwood and leaves [kg_sapwood]/[kg_leaves]. -----------------!

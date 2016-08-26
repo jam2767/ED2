@@ -93,6 +93,7 @@ subroutine copy_nl(copy_type)
    use physiology_coms      , only : iphysiol                  & ! intent(out)
                                    , h2o_plant_lim             & ! intent(out)
                                    , iddmort_scheme            & ! intent(out)
+                                   , cbr_scheme                & ! intent(out)
                                    , ddmort_const              & ! intent(out)
                                    , n_plant_lim               & ! intent(out)
                                    , vmfact_c3                 & ! intent(out)
@@ -210,7 +211,9 @@ subroutine copy_nl(copy_type)
                                    , writing_eorq              & ! intent(out)
                                    , history_fast              & ! intent(out) 
                                    , history_dail              & ! intent(out) 
-                                   , history_eorq              ! ! intent(out)
+                                   , history_eorq              & ! intent(out)
+                                   , growth_resp_scheme        & ! intent(out)
+                                   , storage_resp_scheme       ! ! intent(out)
    use grid_coms            , only : time                      & ! intent(out)
                                    , centlon                   & ! intent(out)
                                    , centlat                   & ! intent(out)
@@ -384,6 +387,7 @@ subroutine copy_nl(copy_type)
       clump_grass               = nl%clump_grass
       h2o_plant_lim             = nl%h2o_plant_lim
       iddmort_scheme            = nl%iddmort_scheme
+      cbr_scheme                = nl%cbr_scheme
       ddmort_const              = nl%ddmort_const
       vmfact_c3                 = nl%vmfact_c3
       vmfact_c4                 = nl%vmfact_c4
@@ -442,6 +446,9 @@ subroutine copy_nl(copy_type)
       ubmin                     = nl%ubmin
       ugbmin                    = nl%ugbmin
       ustmin                    = nl%ustmin
+      
+      growth_resp_scheme        = nl%growth_resp_scheme
+      storage_resp_scheme       = nl%storage_resp_scheme
 
       !----- Print control parameters. ----------------------------------------------------!
       iprintpolys               = nl%iprintpolys

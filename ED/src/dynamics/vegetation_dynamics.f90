@@ -1,8 +1,11 @@
 !==========================================================================================!
 !==========================================================================================!
-!     This subroutine is the main driver for the longer-term vegetation dynamics.  This    !
-! has become a file by itself to reduce the number of sub-routines that are doubled        !
-! between ED-2.1 stand alone and the coupled model.                                        !
+! SUBROUTINE: VEGETATION_DYNAMICS
+!
+!> \brief   Handles vegetation growth, phenology, reproduction, and disturbance.
+!> \details This subroutine first handles any prescribed events, then moves on to phenology,
+!>          biomass growth, structural growth, reproduction, then disturbance.
+!> \author  Translated from ED1 by Ryan Knox and Marcos Longo
 !------------------------------------------------------------------------------------------!
 subroutine vegetation_dynamics(new_month,new_year)
    use grid_coms        , only : ngrids
@@ -27,8 +30,8 @@ subroutine vegetation_dynamics(new_month,new_year)
                                , zero_ed_today_vars         ! ! sub-routine
    implicit none
    !----- Arguments. ----------------------------------------------------------------------!
-   logical          , intent(in)   :: new_month
-   logical          , intent(in)   :: new_year
+   logical          , intent(in)   :: new_month             !< First dtlsm of a new month?
+   logical          , intent(in)   :: new_year              !< First dtlsm of a new year?
    !----- Local variables. ----------------------------------------------------------------!
    type(edtype)     , pointer      :: cgrid
    type(polygontype), pointer      :: cpoly
@@ -90,13 +93,14 @@ subroutine vegetation_dynamics(new_month,new_year)
          !----- Update the fire disturbance rates. ----------------------------------------!
          call fire_frequency(cgrid)
 
-         !----- Update the disturbance rates. ---------------------------------------------!
-         call site_disturbance_rates(current_time%month, current_time%year, cgrid)
-
          !----- This is actually the yearly time-step, apply the disturbances. ------------!
          if (new_year) then
+            !----- Update the disturbance rates. ------------------------------------------!
+            call site_disturbance_rates(current_time%year, cgrid)
             call apply_disturbances(cgrid)
+            !------------------------------------------------------------------------------!
          end if
+         !---------------------------------------------------------------------------------!
       end if
       !------------------------------------------------------------------------------------!
 
@@ -261,14 +265,19 @@ subroutine vegetation_dynamics_eq_0(new_month,new_year)
          call fire_frequency(cgrid)
 
          !----- Update the disturbance rates. ---------------------------------------------!
-         call site_disturbance_rates(current_time%month, current_time%year, cgrid)
-
-         !----- We bypass the disturbance routine alltogether. ----------------------------!
+         if (new_year) then
+            call site_disturbance_rates(current_time%year, cgrid)
+            !----- We bypass the disturbance routine alltogether. -------------------------!
+         end if
+         !---------------------------------------------------------------------------------!
       end if
       !------------------------------------------------------------------------------------!
 
+
       !------  update dmean and mmean values for NPP allocation terms ---------------------!
       call normalize_ed_todayNPP_vars(cgrid)
+      !------------------------------------------------------------------------------------!
+
       
       !------------------------------------------------------------------------------------!
       !     This should be done every day, but after the longer-scale steps.  We re-set    !

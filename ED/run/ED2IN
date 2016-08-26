@@ -303,13 +303,10 @@ $ED_NL
    ! FFILOUT -- Path and prefix for analysis files (all but history/restart).              !
    ! SFILOUT -- Path and prefix for history files.                                         !
    !---------------------------------------------------------------------------------------!
-<<<<<<< HEAD
-   NL%FFILOUT = '/mypath/ts67_eft/analy/santarem_km67'
-   NL%SFILOUT = '/mypath/ts67_eft/histo/santarem_km67'
-=======
-    NL%FFILOUT = '/projectnb/cheas/afshin/analy/duke'
-    NL%SFILOUT = '/projectnb/cheas/afshin/histo/duke'
->>>>>>> 59bedeb0ebbb37e4aa77deaa2b362dd574d31687
+
+   NL%FFILOUT = '/mypath/generic-prefix'
+   NL%SFILOUT = '/mypath/generic-prefix'
+
    !---------------------------------------------------------------------------------------!
 
 
@@ -388,11 +385,9 @@ $ED_NL
    !              path+prefix will be used, as the history for every grid must have come   !
    !              from the same simulation.                                                !
    !---------------------------------------------------------------------------------------!
-<<<<<<< HEAD
+
    NL%SFILIN   = '/n/gstore/Labs/moorcroft_data_protected/mlongo/data/ed2_data/site_bio_data/s67_default.'
-=======
-   NL%SFILIN   = '/usr2/postdoc/apourmok/duke/duke3.'
->>>>>>> 59bedeb0ebbb37e4aa77deaa2b362dd574d31687
+
    !---------------------------------------------------------------------------------------!
 
 
@@ -454,11 +449,9 @@ $ED_NL
    !   5 -- loam                |  11 -- clay                |  17 -- clayey silt          !
    !   6 -- sandy clay loam     |  12 -- peat                                              !
    !---------------------------------------------------------------------------------------!
-<<<<<<< HEAD
-   NL%NSLCON   = 16      ! Default soil type if ISOILFLG = 2 (choices below:)
-=======
+
    NL%NSLCON   = 11      ! Default soil type if ISOILFLG = 2 (choices below:)
->>>>>>> 59bedeb0ebbb37e4aa77deaa2b362dd574d31687
+
    !---------------------------------------------------------------------------------------!
 
 
@@ -490,11 +483,8 @@ $ED_NL
    !   Soil type 21 is a special case in which we use the albedo method that used to be    !
    ! the default in ED-2.1.                                                                !
    !---------------------------------------------------------------------------------------!
-<<<<<<< HEAD
-   NL%ISOILCOL  = 14
-=======
+
    NL%ISOILCOL  = 21
->>>>>>> 59bedeb0ebbb37e4aa77deaa2b362dd574d31687
    !---------------------------------------------------------------------------------------!
 
 
@@ -560,7 +550,6 @@ $ED_NL
    !                      soil temperature and moisture.                                   !
    !  SOILDEPTH_DB     -- Dataset in case you want to read in soil depth information.      !
    !---------------------------------------------------------------------------------------!
-<<<<<<< HEAD
    NL%VEG_DATABASE      = '/n/gstore/Labs/moorcroft_lab_protected/data/ed2_data/oge2OLD/OGE2_'
    NL%SOIL_DATABASE     = '/n/gstore/Labs/moorcroft_lab_protected/data/ed2_data/soil_ed22/Quesada+RADAM+IGBP/Quesada+RADAM+IGBP_'
    NL%LU_DATABASE       = '/n/home00/mlongo/protected/scenarios/glu-3.3.1+sa1.bau/one/glu-3.3.1+sa1.bau-'
@@ -569,16 +558,6 @@ $ED_NL
    NL%ED_MET_DRIVER_DB  = '/n/gstore/Labs/moorcroft_lab_protected/mlongo/data/ed2_data/met_driver/wmo+eft/eft/Santarem_Km67/Santarem_Km67_HEADER'
    NL%SOILSTATE_DB      = '/n/gstore/Labs/moorcroft_lab_protected/data/ed2_data/ed_inputs/STW1996OCT.dat'
    NL%SOILDEPTH_DB      = '/n/gstore/Labs/moorcroft_lab_protected/data/ed2_data/ed_inputs/soil_depths.dat'
-=======
-   NL%VEG_DATABASE      = '/projectnb/cheas/EDI/oge2OLD/OGE2_'
-   NL%SOIL_DATABASE     = '/projectnb/cheas/EDI/faoOLD/FAO_'
-   NL%LU_DATABASE       = ''
-   NL%PLANTATION_FILE   = ''
-   NL%THSUMS_DATABASE   = '/projectnb/cheas/EDI/ed_inputs/'
-   NL%ED_MET_DRIVER_DB = '/usr2/postdoc/apourmok/met3/US-Dk3/ED_MET_DRIVER_HEADER'
-   NL%SOILSTATE_DB='/usr2/postdoc/apourmok/met3/STW1996OCT.dat'
-   NL%SOILDEPTH_DB='/usr2/postdoc/apourmok/met3/soil_depths.dat'
->>>>>>> 59bedeb0ebbb37e4aa77deaa2b362dd574d31687
    !---------------------------------------------------------------------------------------!
 
 
@@ -665,7 +644,7 @@ $ED_NL
    !                       0.  Euler step.  The fastest, but it doesn't estimate           !
    !                           errors.                                                     !
    !                       1.  Fourth-order Runge-Kutta method.  ED-2.1 default method     !
-   !                       2.  Heun's method (a second-order Runge-Kutta).                 !
+   !                       2.  Heun's method (DEPRECATED ATM - DO NOT USE)
    !                       3.  Hybrid Stepping (BDF2 implicit step for the canopy air and  !
    !                           leaf temp, forward Euler for else, under development).      !
    !---------------------------------------------------------------------------------------!
@@ -868,6 +847,7 @@ $ED_NL
    !                 shortwave and longwave.                                               !
    !                 0.  Original two-stream model (Medvigy 2006), with the possibility to !
    !                     apply finite crown area to direct shortwave radiation.            !
+   !                     (deprecated - disable opspec to use 0)                            !
    !                 1.  Multiple-scattering model (Zhao and Qualls 2005,2006), with the   !
    !                     possibility to apply finite crown area to all radiation fluxes.   !
    !                 2.  Updated two-stream model (Liou 2002), with the possibility to     !
@@ -893,7 +873,7 @@ $ED_NL
    !                 lim -> 0.  Black hole (0 itself is unacceptable)                      !
    !                        1.  Homogeneously spread over the layer (i.e., no clumping)    !
    !---------------------------------------------------------------------------------------!
-   NL%ICANRAD        =  0
+   NL%ICANRAD        =  2
    NL%LTRANS_VIS     =  0.050
    NL%LTRANS_NIR     =  0.230
    NL%LREFLECT_VIS   =  0.100
@@ -957,20 +937,35 @@ $ED_NL
    !                         in negative carbon balance only when they run out of storage  !
    !                         and are still losing more carbon than gaining.                !
    !                                                                                       !
-   !  DDMORT_CONST   -- This constant (k) determines the relative contribution of light    !
+   !  CBR_SCHEME     -- This flag determines which carbon stress scheme is used:           !
+   !                    0 -- Single stress. CBR = cb/cb_mlmax                              !
+   !                         cb_mlmax is the carbon balance in full sun and no moisture    !
+   !                         limitation                                                    !
+   !                    1 -- Co-limitation from light and moisture                         !
+   !                         CBR_LIGHT = cb/cb_lightmax and CBR_MOIST = cb/cb_moistmax     !
+   !                         CBR_LIGHT and CBR_MOIST are then weighted according to        !
+   !                         DDMORT_CONST (below)                                          !
+   !                    2 -- Leibig Style, i.e. limitation from either light or moisture   !
+   !                         depending on which is lower at a given point in time          !
+   !                         CBR = cb/max(cb_lightmax, cb_moistmax)                        !
+   !                                                                                       !
+   !  DDMORT_CONST   -- CBR_Scheme = 1 only                                                !
+   !                    This constant (k) determines the relative contribution of light    !
    !                    and soil moisture to the density-dependent mortality rate.  Values !
    !                    range from 0 (soil moisture only) to 1 (light only).               !
    !                                                                                       !
    !                                    mort1                                              !
    !                  mu_DD = -------------------------                                    !
-   !                            1 + exp [ mort2 * cr ]                                     !
+   !                            1 + exp [ mort2 * CBR ]                                    !
    !                                                                                       !
-   !                                 CB                      CB                            !
-   !                  cr    = k ------------- + (1 - k) -------------                      !
-   !                             CB_lightmax             CB_watermax                       !
+   !                1         DDMORT_CONST         1 - DDMORT_CONST                        !
+   !           ------------ = ------------------ + ------------------                      !
+   !           CBR - CBR_SS   CBR_LIGHT - CBR_SS   CBR_MOIST - CBR_SS                      !
+   !                                                                                       ! 
    !---------------------------------------------------------------------------------------!
    NL%IDDMORT_SCHEME  = 0
    NL%DDMORT_CONST    = 0.8
+   NL%CBR_SCHEME      = 0
    !---------------------------------------------------------------------------------------!
 
 
@@ -1334,8 +1329,11 @@ $ED_NL
    ! TREEFALL_DISTURBANCE_RATE -- Sign-dependent treefall disturbance rate:                !
    !                              > 0. usual disturbance rate, in 1/years;                 !
    !                              = 0. No treefall disturbance;                            !
-   !                              < 0. Treefall will be added as a mortality rate (it      !
-   !                                   will kill plants, but it won't create a new patch). !
+   !                              < 0. (Tropical PFTs only, others will use the absolute   !
+   !                                   value instead).  Test for a new slope for density   !
+   !                                   independent mortality based on Kraft et al. (2010)  !
+   !                                   and Paracou data.  Absolute value will be used as   !
+   !                                   the base line rate for late successional trees.     !
    ! TIME2CANOPY               -- Minimum patch age for treefall disturbance to happen.    !
    !                              If TREEFALL_DISTURBANCE_RATE = 0., this value will be    !
    !                              ignored.  If this value is different than zero, then     !
@@ -1462,19 +1460,12 @@ $ED_NL
    !                                                                                       !
    ! If the years don't cover the entire simulation period, they will be recycled.         !
    !---------------------------------------------------------------------------------------!
-<<<<<<< HEAD
+
    NL%IPHENYS1 = 1992
    NL%IPHENYSF = 2003
    NL%IPHENYF1 = 1992
    NL%IPHENYFF = 2003
    NL%PHENPATH   = '/n/gstore/Labs/moorcroft_lab_protected/data/ed2_data/phenology/phenology'
-=======
-   NL%IPHENYS1 = 1996
-   NL%IPHENYSF = 2009
-   NL%IPHENYF1 = 1996
-   NL%IPHENYFF = 2009
-   NL%PHENPATH = ''
->>>>>>> 59bedeb0ebbb37e4aa77deaa2b362dd574d31687
    !---------------------------------------------------------------------------------------!
 
 
@@ -1538,8 +1529,12 @@ $ED_NL
    !               photosynthesis and detailed output from the integrator, set IDETAILED   !
    !               to 6 (2 + 4).  Any combination of the above outputs is acceptable, al-  !
    !               though all but the last produce a sheer amount of txt files, in which   !
-   !               case you may want to look at variable PATCH_KEEP.  It is also a good    !
-   !               idea to set IVEGT_DYNAMICS to 0 when using the first five outputs.      !
+   !               case you may want to look at variable PATCH_KEEP.                       !
+   !                                                                                       !
+   !               IMPORTANT:  The first five options will only work for single site       !
+   !                           simulations, and it is strongly recommended to set          !
+   !                           IVEGT_DYNAMICS to 0.  These options generate tons of        !
+   !                           output, so don't try these options with long simulations.   !
    !                                                                                       !
    !                                                                                       !
    ! PATCH_KEEP -- This option will eliminate all patches except one from the initial-     !
@@ -1555,6 +1550,33 @@ $ED_NL
    NL%PATCH_KEEP = 0
    !---------------------------------------------------------------------------------------!
 
+
+
+   !---------------------------------------------------------------------------------------!
+   ! GROWTH_RESP_SCHEME -- This flag indicates how growth respiration fluxes are treated.  !
+   !                                                                                       !
+   !        0 - ED Default. Growth respiration is treated as tax on GPP, at pft-specific   !
+   !            rate given by growth_resp_factor. All growth respiration is treated as     !
+   !            aboveground wood -> canopy-airspace flux.                                  !
+   !        1 - Growth respiration is calculated as in 0, but split into fluxes entering   !
+   !            the CAS from leaf, sapwooda, sapwoodb, and root sources, proportionally to !
+   !            biomass. This does not affect carbon budget at all, it provides greater    !
+   !            within-ecosystem flux resolution.                                          !
+   !---------------------------------------------------------------------------------------!
+   NL%GROWTH_RESP_SCHEME = 0
+   !---------------------------------------------------------------------------------------!
+
+
+   !---------------------------------------------------------------------------------------!
+   ! STORAGE_RESP_SCHEME -- This flag controls how storage respiration fluxes are treated. !
+   !                                                                                       !
+   !        0 - ED Default. Storage resp. is aboveground wood -> canopy-airspace flux.     !
+   !        1 - Storage respiration is calculated as in 0, but split into fluxes entering  !
+   !            the CAS from leaf, sapwooda, sapwoodb, and root sources, proportionally to !
+   !            biomass.                                                                   !
+   !---------------------------------------------------------------------------------------!
+   NL%STORAGE_RESP_SCHEME = 0
+   !---------------------------------------------------------------------------------------!
 
 
    !---------------------------------------------------------------------------------------!

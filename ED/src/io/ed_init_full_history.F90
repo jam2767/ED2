@@ -45,8 +45,6 @@ subroutine init_full_history_restart()
                                , chnkdims              & ! intent(inout)
                                , chnkoffs              ! ! intent(inout)
    implicit none
-   !------ Standard common block. ---------------------------------------------------------!
-   include 'mpif.h'
    !------ Local variables. ---------------------------------------------------------------!
    type(edtype)                        , pointer     :: cgrid
    type(polygontype)                   , pointer     :: cpoly
@@ -62,15 +60,14 @@ subroutine init_full_history_restart()
    integer               , dimension(:), allocatable :: paco_id
    integer                                           :: ngr
    integer                                           :: ifpy
-   integer                                           :: ipft
    integer                                           :: ipy
    integer                                           :: isi
    integer                                           :: ipa
-   integer                                           :: ico
    integer                                           :: py_index
    integer                                           :: si_index
    integer                                           :: pa_index
    integer                                           :: hdferr
+   logical               , dimension(:), allocatable :: is_burnt
    logical                                           :: exists
    real                  , dimension(:), allocatable :: file_lats
    real                  , dimension(:), allocatable :: file_lons
@@ -306,7 +303,10 @@ subroutine init_full_history_restart()
             !     Get all necessary site variables associated with this index for the      !
             ! current polygon.                                                             !
             !------------------------------------------------------------------------------!
-            call fill_history_polygon(cpoly,pysi_id(py_index),cgrid%nsites_global)
+            allocate (is_burnt(pysi_n(py_index)))
+            is_burnt(:) = .false.
+            call fill_history_polygon(cpoly,pysi_id(py_index),cgrid%nsites_global          &
+                                     ,pysi_n(py_index),is_burnt)
             
             siteloop: do isi = 1,cpoly%nsites
                csite => cpoly%site(isi)
@@ -322,7 +322,8 @@ subroutine init_full_history_restart()
                   !     Get all necessary site variables associated with this index for    !
                   ! the current site.                                                      !
                   !------------------------------------------------------------------------!
-                  call fill_history_site(csite,sipa_id(si_index),cgrid%npatches_global)
+                  call fill_history_site(csite,sipa_id(si_index),cgrid%npatches_global     &
+                                        ,is_burnt(isi))
 
                   patchloop: do ipa = 1,csite%npatches
                      cpatch => csite%patch(ipa)
@@ -337,8 +338,8 @@ subroutine init_full_history_restart()
                         ! for the current patch.                                           !
                         !------------------------------------------------------------------!
                         call fill_history_patch(cpatch,paco_id(pa_index)                   &
-                                               ,cgrid%ncohorts_global                      &
-                                               ,cpoly%green_leaf_factor(:,isi))
+                                               ,cgrid%ncohorts_global)
+                        !------------------------------------------------------------------!
                      else
                         cpatch%ncohorts = 0
                      endif
@@ -358,6 +359,7 @@ subroutine init_full_history_restart()
                end if
 
             end do siteloop
+            deallocate (is_burnt)
             
          else
             write (unit=*,fmt='(a)'          ) '------------------------------------'
@@ -465,12 +467,6 @@ subroutine fill_history_grid(cgrid,ipy,py_index)
    type(edtype)   , target      :: cgrid
    integer        , intent(in)  :: ipy
    integer        , intent(in)  :: py_index
-   !----- Local variables. ----------------------------------------------------------------!
-   integer                      :: iparallel
-   integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
-   logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
    if (cgrid%npolygons == 0) return
@@ -583,8 +579,6 @@ subroutine fill_history_grid_p11(cgrid,ipy,py_index)
    !----- Local variables. ----------------------------------------------------------------!
    integer                      :: iparallel
    integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
    logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
@@ -825,8 +819,6 @@ subroutine fill_history_grid_p11dmean(cgrid,ipy,py_index)
    !----- Local variables. ----------------------------------------------------------------!
    integer                      :: iparallel
    integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
    logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
@@ -917,12 +909,22 @@ subroutine fill_history_grid_p11dmean(cgrid,ipy,py_index)
                         ,'DMEAN_LEAF_RESP_PY        ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%dmean_root_resp      (ipy:ipy)                              &
                         ,'DMEAN_ROOT_RESP_PY        ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%dmean_growth_resp    (ipy:ipy)                              &
-                        ,'DMEAN_GROWTH_RESP_PY      ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%dmean_storage_resp   (ipy:ipy)                              &
-                        ,'DMEAN_STORAGE_RESP_PY     ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%dmean_vleaf_resp     (ipy:ipy)                              &
-                        ,'DMEAN_VLEAF_RESP_PY       ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_leaf_growth_resp(ipy:ipy)                             &
+                        ,'DMEAN_LEAF_GROWTH_RESP_PY ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_root_growth_resp(ipy:ipy)                             &
+                        ,'DMEAN_ROOT_GROWTH_RESP_PY ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_sapa_growth_resp(ipy:ipy)                             &
+                        ,'DMEAN_SAPA_GROWTH_RESP_PY ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_sapb_growth_resp(ipy:ipy)                             &
+                        ,'DMEAN_SAPB_GROWTH_RESP_PY ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_leaf_storage_resp(ipy:ipy)                            &
+                        ,'DMEAN_LEAF_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_root_storage_resp(ipy:ipy)                            &
+                        ,'DMEAN_ROOT_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_sapa_storage_resp(ipy:ipy)                            &
+                        ,'DMEAN_SAPA_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_sapb_storage_resp(ipy:ipy)                            &
+                        ,'DMEAN_SAPB_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%dmean_plresp         (ipy:ipy)                              &
                         ,'DMEAN_PLRESP_PY           ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%dmean_leaf_energy    (ipy:ipy)                              &
@@ -959,6 +961,18 @@ subroutine fill_history_grid_p11dmean(cgrid,ipy,py_index)
                         ,'DMEAN_FSW_PY              ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%dmean_fsn            (ipy:ipy)                              &
                         ,'DMEAN_FSN_PY              ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_a_open         (ipy:ipy)                              &
+                        ,'DMEAN_A_OPEN_PY           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_a_closed       (ipy:ipy)                              &
+                        ,'DMEAN_A_CLOSED_PY         ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_a_net          (ipy:ipy)                              &
+                        ,'DMEAN_A_NET_PY            ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_a_light        (ipy:ipy)                              &
+                        ,'DMEAN_A_LIGHT_PY          ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_a_rubp         (ipy:ipy)                              &
+                        ,'DMEAN_A_RUBP_PY           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%dmean_a_co2          (ipy:ipy)                              &
+                        ,'DMEAN_A_CO2_PY            ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%dmean_psi_open       (ipy:ipy)                              &
                         ,'DMEAN_PSI_OPEN_PY         ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%dmean_psi_closed     (ipy:ipy)                              &
@@ -1224,8 +1238,6 @@ subroutine fill_history_grid_p11mmean(cgrid,ipy,py_index)
    !----- Local variables. ----------------------------------------------------------------!
    integer                      :: iparallel
    integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
    logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
@@ -1306,12 +1318,22 @@ subroutine fill_history_grid_p11mmean(cgrid,ipy,py_index)
                         ,'MMEAN_LEAF_RESP_PY        ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%mmean_root_resp      (ipy:ipy)                              &
                         ,'MMEAN_ROOT_RESP_PY        ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%mmean_growth_resp    (ipy:ipy)                              &
-                        ,'MMEAN_GROWTH_RESP_PY      ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%mmean_storage_resp   (ipy:ipy)                              &
-                        ,'MMEAN_STORAGE_RESP_PY     ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%mmean_vleaf_resp     (ipy:ipy)                              &
-                        ,'MMEAN_VLEAF_RESP_PY       ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_leaf_growth_resp(ipy:ipy)                             &
+                        ,'MMEAN_LEAF_GROWTH_RESP_PY ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_root_growth_resp(ipy:ipy)                             &
+                        ,'MMEAN_ROOT_GROWTH_RESP_PY ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_sapa_growth_resp(ipy:ipy)                             &
+                        ,'MMEAN_SAPA_GROWTH_RESP_PY ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_sapb_growth_resp(ipy:ipy)                             &
+                        ,'MMEAN_SAPB_GROWTH_RESP_PY ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_leaf_storage_resp(ipy:ipy)                            &
+                        ,'MMEAN_LEAF_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_root_storage_resp(ipy:ipy)                            &
+                        ,'MMEAN_ROOT_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_sapa_storage_resp(ipy:ipy)                            &
+                        ,'MMEAN_SAPA_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_sapb_storage_resp(ipy:ipy)                            &
+                        ,'MMEAN_SAPB_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%mmean_plresp         (ipy:ipy)                              &
                         ,'MMEAN_PLRESP_PY           ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%mmean_leaf_energy    (ipy:ipy)                              &
@@ -1348,6 +1370,18 @@ subroutine fill_history_grid_p11mmean(cgrid,ipy,py_index)
                         ,'MMEAN_FSW_PY              ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%mmean_fsn            (ipy:ipy)                              &
                         ,'MMEAN_FSN_PY              ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_a_open         (ipy:ipy)                              &
+                        ,'MMEAN_A_OPEN_PY           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_a_closed       (ipy:ipy)                              &
+                        ,'MMEAN_A_CLOSED_PY         ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_a_net          (ipy:ipy)                              &
+                        ,'MMEAN_A_NET_PY            ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_a_light        (ipy:ipy)                              &
+                        ,'MMEAN_A_LIGHT_PY          ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_a_rubp         (ipy:ipy)                              &
+                        ,'MMEAN_A_RUBP_PY           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%mmean_a_co2          (ipy:ipy)                              &
+                        ,'MMEAN_A_CO2_PY            ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%mmean_psi_open       (ipy:ipy)                              &
                         ,'MMEAN_PSI_OPEN_PY         ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%mmean_psi_closed     (ipy:ipy)                              &
@@ -1702,8 +1736,6 @@ subroutine fill_history_grid_p12(cgrid,ipy,py_index)
    !----- Local variables. ----------------------------------------------------------------!
    integer                      :: iparallel
    integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
    logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
@@ -1897,8 +1929,6 @@ subroutine fill_history_grid_m11(cgrid,ipy,py_index)
    !----- Local variables. ----------------------------------------------------------------!
    integer                      :: iparallel
    integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
    logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
@@ -1967,12 +1997,22 @@ subroutine fill_history_grid_m11(cgrid,ipy,py_index)
                         ,'QMEAN_LEAF_RESP_PY       ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%qmean_root_resp      (:,ipy)                                &
                         ,'QMEAN_ROOT_RESP_PY       ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%qmean_growth_resp    (:,ipy)                                &
-                        ,'QMEAN_GROWTH_RESP_PY     ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%qmean_storage_resp   (:,ipy)                                &
-                        ,'QMEAN_STORAGE_RESP_PY    ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cgrid%qmean_vleaf_resp     (:,ipy)                                &
-                        ,'QMEAN_VLEAF_RESP_PY      ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_leaf_growth_resp(:,ipy)                               &
+                        ,'QMEAN_LEAF_GROWTH_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_root_growth_resp(:,ipy)                               &
+                        ,'QMEAN_ROOT_GROWTH_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_sapa_growth_resp(:,ipy)                               &
+                        ,'QMEAN_SAPA_GROWTH_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_sapb_growth_resp(:,ipy)                               &
+                        ,'QMEAN_SAPB_GROWTH_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_leaf_storage_resp(:,ipy)                              &
+                        ,'QMEAN_LEAF_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_root_storage_resp(:,ipy)                              &
+                        ,'QMEAN_ROOT_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_sapa_storage_resp(:,ipy)                              &
+                        ,'QMEAN_SAPA_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_sapb_storage_resp(:,ipy)                              &
+                        ,'QMEAN_SAPB_STORAGE_RESP_PY',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%qmean_plresp         (:,ipy)                                &
                         ,'QMEAN_PLRESP_PY          ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%qmean_leaf_energy    (:,ipy)                                &
@@ -2009,6 +2049,18 @@ subroutine fill_history_grid_m11(cgrid,ipy,py_index)
                         ,'QMEAN_FSW_PY             ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%qmean_fsn            (:,ipy)                                &
                         ,'QMEAN_FSN_PY             ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_a_open         (:,ipy)                                &
+                        ,'QMEAN_A_OPEN_PY          ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_a_closed       (:,ipy)                                &
+                        ,'QMEAN_A_CLOSED_PY        ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_a_net          (:,ipy)                                &
+                        ,'QMEAN_A_NET_PY           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_a_light        (:,ipy)                                &
+                        ,'QMEAN_A_LIGHT_PY         ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_a_rubp         (:,ipy)                                &
+                        ,'QMEAN_A_RUBP_PY          ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cgrid%qmean_a_co2          (:,ipy)                                &
+                        ,'QMEAN_A_CO2_PY           ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%qmean_psi_open       (:,ipy)                                &
                         ,'QMEAN_PSI_OPEN_PY        ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cgrid%qmean_psi_closed     (:,ipy)                                &
@@ -2325,8 +2377,6 @@ subroutine fill_history_grid_p19(cgrid,ipy,py_index)
    !----- Local variables. ----------------------------------------------------------------!
    integer                      :: iparallel
    integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
    logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
@@ -2487,8 +2537,6 @@ subroutine fill_history_grid_m12(cgrid,ipy,py_index)
    !----- Local variables. ----------------------------------------------------------------!
    integer                      :: iparallel
    integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
    logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
@@ -2669,8 +2717,6 @@ subroutine fill_history_grid_p146(cgrid,ipy,py_index)
    !----- Local variables. ----------------------------------------------------------------!
    integer                      :: iparallel
    integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
    logical                      :: foundvar
    !---------------------------------------------------------------------------------------!
 
@@ -2824,7 +2870,7 @@ end subroutine fill_history_grid_p146
 !==========================================================================================!
 !      This sub-routine loads all site-level variables from the history file.              !
 !------------------------------------------------------------------------------------------!
-subroutine fill_history_polygon(cpoly,pysi_index,nsites_global)
+subroutine fill_history_polygon(cpoly,pysi_index,nsites_global,nsites_now,is_burnt)
    use ed_state_vars, only : polygontype   ! ! structure
    use grid_coms    , only : nzg           ! ! intent(in)
    use ed_max_dims  , only : n_pft         & ! intent(in)
@@ -2897,15 +2943,24 @@ subroutine fill_history_polygon(cpoly,pysi_index,nsites_global)
    !---------------------------------------------------------------------------------------!
 
    !----- Arguments. ----------------------------------------------------------------------!
-   type(polygontype), target     :: cpoly
-   integer          , intent(in) :: pysi_index
-   integer          , intent(in) :: nsites_global
+   type(polygontype)             , target        :: cpoly
+   integer                       , intent(in)    :: pysi_index
+   integer                       , intent(in)    :: nsites_global
+   integer                       , intent(in)    :: nsites_now
+   logical, dimension(nsites_now), intent(inout) :: is_burnt
    !----- Local variables. ----------------------------------------------------------------!
-   integer                      :: iparallel
-   integer                      :: dsetrank
-   integer(SIZE_T)              :: sz
-   integer                      :: hdferr
-   logical                      :: foundvar
+   integer                                       :: iparallel
+   integer                                       :: dsetrank
+   integer                                       :: isi
+   logical                                       :: foundvar
+   integer                                       :: pidx
+   integer                                       :: sidx
+   integer, dimension(:)         , allocatable   :: nat_dist_type
+   real, dimension(:,:,:)        , allocatable   :: tmp_dist_memory
+   real, dimension(:,:,:)        , allocatable   :: tmp_dist_rates
+   logical                                       :: old_histo
+   !----- Local constants. ----------------------------------------------------------------!
+   integer               , parameter   :: n_lu_old = 3
    !---------------------------------------------------------------------------------------!
 
 
@@ -2969,8 +3024,6 @@ subroutine fill_history_polygon(cpoly,pysi_index,nsites_global)
                      ,'HYDRO_PREV              ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_i(cpoly%plantation                                                     &
                      ,'PLANTATION_SI           ',dsetrank,iparallel,.true. ,foundvar)
-   call hdf_getslab_i(cpoly%nat_dist_type                                                  &
-                     ,'NAT_DIST_TYPE           ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_i(cpoly%agri_stocking_pft                                              &
                      ,'AGRI_STOCKING_PFT       ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_i(cpoly%plantation_stocking_pft                                        &
@@ -2996,6 +3049,24 @@ subroutine fill_history_polygon(cpoly,pysi_index,nsites_global)
    !---------------------------------------------------------------------------------------!
    !---------------------------------------------------------------------------------------!
 
+
+
+
+   !---------------------------------------------------------------------------------------!
+   !---------------------------------------------------------------------------------------!
+   !---------------------------------------------------------------------------------------!
+   !     Test whether this is a new or an old history.                                     !
+   ! MLO. Variable NAT_DIST_TYPE was deleted because now burnt patches are distinguished   !
+   !      from tree fall patches.   Thus, if NAT_DIST_TYPE exists in the file, then it     !
+   !      must be and old history file.                                                    !
+   !---------------------------------------------------------------------------------------!
+   allocate(nat_dist_type(cpoly%nsites))
+   call hdf_getslab_i(nat_dist_type                                                        &
+                     ,'NAT_DIST_TYPE           ',dsetrank,iparallel,.false.,foundvar)
+   old_histo = foundvar
+   !---------------------------------------------------------------------------------------!
+   !---------------------------------------------------------------------------------------!
+   !---------------------------------------------------------------------------------------!
 
 
 
@@ -3042,16 +3113,16 @@ subroutine fill_history_polygon(cpoly,pysi_index,nsites_global)
                       ,'AGRI_STOCKING_DENSITY      ' ,dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpoly%plantation_stocking_density                                    &
                       ,'PLANTATION_STOCKING_DENSITY' ,dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpoly%primary_harvest_target                                         &
+                      ,'PRIMARY_HARVEST_TARGET     ' ,dsetrank,iparallel,.false.,foundvar)
+   call hdf_getslab_r(cpoly%secondary_harvest_target                                       &
+                      ,'SECONDARY_HARVEST_TARGET   ' ,dsetrank,iparallel,.false.,foundvar)
    call hdf_getslab_r(cpoly%primary_harvest_memory                                         &
                       ,'PRIMARY_HARVEST_MEMORY     ' ,dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpoly%secondary_harvest_memory                                       &
                       ,'SECONDARY_HARVEST_MEMORY   ' ,dsetrank,iparallel,.true. ,foundvar)
-   call hdf_getslab_r(cpoly%fire_disturbance_rate                                          &
-                      ,'FIRE_DISTURBANCE_RATE      ' ,dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpoly%ignition_rate                                                  &
                       ,'IGNITION_RATE              ' ,dsetrank,iparallel,.true. ,foundvar)
-   call hdf_getslab_r(cpoly%nat_disturbance_rate                                           &
-                      ,'NAT_DISTURBANCE_RATE       ' ,dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpoly%rad_avg                                                        &
                       ,'RAD_AVG                    ' ,dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpoly%daylight                                                       &
@@ -3310,34 +3381,147 @@ subroutine fill_history_polygon(cpoly,pysi_index,nsites_global)
    !---------------------------------------------------------------------------------------!
    !---------------------------------------------------------------------------------------!
    !---------------------------------------------------------------------------------------!
-   !      3-D variables, dimensions: (n_dist_types;n_dist_types;nsites).                   !
+   !      3-D variables, dimensions: (n_dist_types;n_dist_types;nsites).  Because the      !
+   ! number of land use types has changed, we must check whether this history file is old  !
+   ! or new.                                                                               !
    !---------------------------------------------------------------------------------------!
-   dsetrank       = 3
-   globdims(1:2)  = int(n_dist_types,8)
-   chnkdims(1:2)  = int(n_dist_types,8)
-   memdims (1:2)  = int(n_dist_types,8)
-   memsize (1:2)  = int(n_dist_types,8)
-   chnkoffs(1:2)  = 0_8
-   memoffs (1:2)  = 0_8
-   globdims(3)    = int(nsites_global ,8)
-   chnkdims(3)    = int(cpoly%nsites  ,8)
-   chnkoffs(3)    = int(pysi_index - 1,8)
-   memdims(3)     = int(cpoly%nsites  ,8)
-   memsize(3)     = int(cpoly%nsites  ,8)
-   memoffs(3)     = 0_8
+   if (old_histo) then
+      !------------------------------------------------------------------------------------!
+      !     Old history file, read the information to a temporary array.                   !
+      !------------------------------------------------------------------------------------!
+      dsetrank       = 3
+      globdims(1:2)  = int(n_lu_old,8)
+      chnkdims(1:2)  = int(n_lu_old,8)
+      memdims (1:2)  = int(n_lu_old,8)
+      memsize (1:2)  = int(n_lu_old,8)
+      chnkoffs(1:2)  = 0_8
+      memoffs (1:2)  = 0_8
+      globdims(3)    = int(nsites_global ,8)
+      chnkdims(3)    = int(cpoly%nsites  ,8)
+      chnkoffs(3)    = int(pysi_index - 1,8)
+      memdims(3)     = int(cpoly%nsites  ,8)
+      memsize(3)     = int(cpoly%nsites  ,8)
+      memoffs(3)     = 0_8
+      !------------------------------------------------------------------------------------!
 
-   call hdf_getslab_r(cpoly%disturbance_memory                                             &
-                     ,'DISTURBANCE_MEMORY ',dsetrank,iparallel,.true.,foundvar)
-   !---------------------------------------------------------------------------------------!
-   !       The _SI extension has been dropped as disturbance rate is no longer a polygon   !
-   !  variable.  In case the history is from an old file, they may still exist, so we try  !
-   !  it first and if it doesn't work we try the one without extension.                    !
-   !---------------------------------------------------------------------------------------!
-   call hdf_getslab_r(cpoly%disturbance_rates                                              &
-                     ,'DISTURBANCE_RATES_SI ',dsetrank,iparallel,.false.,foundvar)
-   if (.not. foundvar) then
+      !------------------------------------------------------------------------------------!
+      !     Allocate temporary variable, we must translate the transition rates to the     !
+      ! new matrix.                                                                        !
+      !------------------------------------------------------------------------------------!
+      allocate(tmp_dist_memory(n_lu_old,n_lu_old,cpoly%nsites))
+      allocate(tmp_dist_rates (n_lu_old,n_lu_old,cpoly%nsites))
+      cpoly%disturbance_memory(:,:,:) = 0.0
+      cpoly%disturbance_rates (:,:,:) = 0.0
+
+      call hdf_getslab_r(tmp_dist_memory                                                   &
+                        ,'DISTURBANCE_MEMORY ',dsetrank,iparallel,.true.,foundvar)
+      !------------------------------------------------------------------------------------!
+      !       The _SI extension has been dropped as disturbance rate is no longer a        !
+      ! polygon variable.  In case the history is from an old file, they may still exist,  !
+      ! so we try it first and if it doesn't work we try the one without extension.        !
+      !------------------------------------------------------------------------------------!
+      call hdf_getslab_r(tmp_dist_rates                                                    &
+                        ,'DISTURBANCE_RATES_SI ',dsetrank,iparallel,.false.,foundvar)
+      if (.not. foundvar) then
+         call hdf_getslab_r(tmp_dist_rates                                                 &
+                           ,'DISTURBANCE_RATES ',dsetrank,iparallel,.true.,foundvar)
+      end if
+      !------------------------------------------------------------------------------------!
+
+
+      do isi=1,cpoly%nsites
+         !------ Save information on whether the site has been burnt. ---------------------!
+         is_burnt(isi) = nat_dist_type(isi) == 1
+         !---------------------------------------------------------------------------------!
+
+         !---------------------------------------------------------------------------------!
+         !     Find the indices for disturbance transitions based on the last fire regime  !
+         ! and whether it is a forest plantation of an explored stand.  The translation    !
+         ! won't be perfect, because we cannot retrieve all information needed.            !
+         !---------------------------------------------------------------------------------!
+         !----- "Primary forest index", tree fall or burnt. -------------------------------!
+         select case (nat_dist_type(isi))
+         case (0)
+            pidx = 3
+         case (1)
+            pidx = 4
+         end select
+         !----- "Secondary forest index", logged or plantation. ---------------------------!
+         select case (cpoly%plantation(isi))
+         case (0)
+            sidx = 6
+         case (1)
+            sidx = 2
+         end select
+         !---------------------------------------------------------------------------------!
+
+
+         !----- Translate the memory transition matrix. -----------------------------------!
+         cpoly%disturbance_memory(   1,   1,isi) = tmp_dist_memory(1,1,isi)
+         cpoly%disturbance_memory(   1,sidx,isi) = tmp_dist_memory(1,2,isi)
+         cpoly%disturbance_memory(   1,pidx,isi) = tmp_dist_memory(1,3,isi)
+         cpoly%disturbance_memory(   5,   1,isi) = tmp_dist_memory(2,1,isi)
+         cpoly%disturbance_memory(sidx,sidx,isi) = tmp_dist_memory(2,2,isi)
+         cpoly%disturbance_memory(sidx,pidx,isi) = tmp_dist_memory(2,3,isi)
+         cpoly%disturbance_memory(pidx,sidx,isi) = tmp_dist_memory(3,2,isi)
+         cpoly%disturbance_memory(pidx,pidx,isi) = tmp_dist_memory(3,3,isi)
+         !---------------------------------------------------------------------------------!
+
+
+
+
+         !----- Translate the current transition matrix. ----------------------------------!
+         cpoly%disturbance_rates (   1,   1,isi) = tmp_dist_rates (1,1,isi)
+         cpoly%disturbance_rates (   1,sidx,isi) = tmp_dist_rates (1,2,isi)
+         cpoly%disturbance_rates (   1,pidx,isi) = tmp_dist_rates (1,3,isi)
+         cpoly%disturbance_rates (   5,   1,isi) = tmp_dist_rates (2,1,isi)
+         cpoly%disturbance_rates (sidx,sidx,isi) = tmp_dist_rates (2,2,isi)
+         cpoly%disturbance_rates (sidx,pidx,isi) = tmp_dist_rates (2,3,isi)
+         cpoly%disturbance_rates (pidx,sidx,isi) = tmp_dist_rates (3,2,isi)
+         cpoly%disturbance_rates (pidx,pidx,isi) = tmp_dist_rates (3,3,isi)
+         !---------------------------------------------------------------------------------!
+      end do
+      !------------------------------------------------------------------------------------!
+
+
+      !----- Free memory. -----------------------------------------------------------------!
+      deallocate(tmp_dist_memory)
+      deallocate(tmp_dist_rates )
+      !------------------------------------------------------------------------------------!
+
+   else
+      !------------------------------------------------------------------------------------!
+      !     Compatible history file, just read the information.                            !
+      !------------------------------------------------------------------------------------!
+      dsetrank       = 3
+      globdims(1:2)  = int(n_dist_types,8)
+      chnkdims(1:2)  = int(n_dist_types,8)
+      memdims (1:2)  = int(n_dist_types,8)
+      memsize (1:2)  = int(n_dist_types,8)
+      chnkoffs(1:2)  = 0_8
+      memoffs (1:2)  = 0_8
+      globdims(3)    = int(nsites_global ,8)
+      chnkdims(3)    = int(cpoly%nsites  ,8)
+      chnkoffs(3)    = int(pysi_index - 1,8)
+      memdims(3)     = int(cpoly%nsites  ,8)
+      memsize(3)     = int(cpoly%nsites  ,8)
+      memoffs(3)     = 0_8
+      !------------------------------------------------------------------------------------!
+
+      call hdf_getslab_r(cpoly%disturbance_memory                                          &
+                        ,'DISTURBANCE_MEMORY ',dsetrank,iparallel,.true.,foundvar)
+      !------------------------------------------------------------------------------------!
+      !       The _SI extension has been dropped as disturbance rate is no longer a        !
+      ! polygon variable.  In case the history is from an old file, they may still exist,  !
+      ! so we try it first and if it doesn't work we try the one without extension.        !
+      !------------------------------------------------------------------------------------!
       call hdf_getslab_r(cpoly%disturbance_rates                                           &
-                        ,'DISTURBANCE_RATES ',dsetrank,iparallel,.true.,foundvar)
+                        ,'DISTURBANCE_RATES_SI ',dsetrank,iparallel,.false.,foundvar)
+      if (.not. foundvar) then
+         call hdf_getslab_r(cpoly%disturbance_rates                                        &
+                           ,'DISTURBANCE_RATES ',dsetrank,iparallel,.true.,foundvar)
+      end if
+      !------------------------------------------------------------------------------------!
    end if
    !---------------------------------------------------------------------------------------!
    !---------------------------------------------------------------------------------------!
@@ -3392,6 +3576,9 @@ subroutine fill_history_polygon(cpoly,pysi_index,nsites_global)
                      ,'AGB_CUT           ',dsetrank,iparallel,.true. ,foundvar)
 
 
+   !----- Free memory. --------------------------------------------------------------------!
+   deallocate(nat_dist_type)
+   !---------------------------------------------------------------------------------------!
    return
 end subroutine fill_history_polygon
 !==========================================================================================!
@@ -3404,7 +3591,7 @@ end subroutine fill_history_polygon
 
 !==========================================================================================!
 !==========================================================================================!
-subroutine fill_history_site(csite,sipa_index,npatches_global)
+subroutine fill_history_site(csite,sipa_index,npatches_global,is_burnt)
    use ed_state_vars      , only : sitetype      ! ! structure
    use grid_coms          , only : nzg           & ! intent(in)
                                  , nzs           ! ! intent(in)
@@ -3483,14 +3670,14 @@ subroutine fill_history_site(csite,sipa_index,npatches_global)
    type(sitetype)             , target       :: csite
    integer                    , intent(in)   :: sipa_index
    integer                    , intent(in)   :: npatches_global
+   logical                    , intent(in)   :: is_burnt
    !----- Local variables. ----------------------------------------------------------------!
    integer                                   :: iparallel
    integer                                   :: dsetrank
-   integer                                   :: hdferr
    logical                                   :: foundvar
    integer                                   :: ipa
-   integer                                   :: ipft
-   real(kind=8), dimension(:,:), allocatable ::  buff
+   ! real(kind=8), dimension(:,:), allocatable :: buff
+   integer     , dimension(:)  , allocatable :: plantation
    !---------------------------------------------------------------------------------------!
 
 
@@ -3544,8 +3731,6 @@ subroutine fill_history_site(csite,sipa_index,npatches_global)
    memoffs (1)  = 0_8
    call hdf_getslab_i(csite%dist_type                                                      &
                      ,'DIST_TYPE                   ',dsetrank,iparallel,.true. ,foundvar)
-   call hdf_getslab_i(csite%plantation                                                     &
-                     ,'PLANTATION                  ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_i(csite%nlev_sfcwater                                                  &
                      ,'NLEV_SFCWATER               ',dsetrank,iparallel,.true. ,foundvar)
    !---------------------------------------------------------------------------------------!
@@ -3554,6 +3739,40 @@ subroutine fill_history_site(csite,sipa_index,npatches_global)
 
 
 
+
+   !---------------------------------------------------------------------------------------!
+   !---------------------------------------------------------------------------------------!
+   !---------------------------------------------------------------------------------------!
+   !      Check whether this is an old history file (back when there were only 3 types).   !
+   ! If this is the case, we must translate the indices to the new disturbance table.      !
+   ! This is not going to be perfect because the number of disturbance types increased,    !
+   ! but this should be rarely needed, as it is not a good idea to switch versions then    !
+   ! continue to run the model using binary-history.                                       !
+   !---------------------------------------------------------------------------------------!
+   allocate(plantation(csite%npatches))
+   call hdf_getslab_i(plantation                                                           &
+                     ,'PLANTATION                  ',dsetrank,iparallel,.false. ,foundvar)
+
+   !----- Old history files have variable plantation.  If so, check disturbance types. ----!
+   if (foundvar) then
+      !----- Go through all patches and decide whether to change the disturbance type. ----!
+      do ipa=1,csite%npatches
+         select case(csite%dist_type(ipa))
+         case (2)
+            if (plantation(ipa) == 0) csite%dist_type(ipa) = 6
+         case (3)
+            if (is_burnt            ) csite%dist_type(ipa) = 4
+         end select
+         !---------------------------------------------------------------------------------!
+      end do
+      !------------------------------------------------------------------------------------!
+   end if
+   !---------------------------------------------------------------------------------------!
+
+   deallocate(plantation)
+   !---------------------------------------------------------------------------------------!
+   !---------------------------------------------------------------------------------------!
+   !---------------------------------------------------------------------------------------!
 
 
    !---------------------------------------------------------------------------------------!
@@ -4534,7 +4753,7 @@ end subroutine fill_history_site
 !     This sub-routine loads all state variables and partial integrations at the cohort    !
 ! level.                                                                                   !
 !------------------------------------------------------------------------------------------!
-subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_factor)
+subroutine fill_history_patch(cpatch,paco_index,ncohorts_global)
    use ed_state_vars      , only : patchtype     ! ! structure
    use grid_coms          , only : nzg           & ! intent(in)
                                  , nzs           ! ! intent(in)
@@ -4615,14 +4834,11 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
    type(patchtype)                  , target       :: cpatch
    integer                          , intent(in)   :: paco_index
    integer                          , intent(in)   :: ncohorts_global
-   real           , dimension(n_pft), intent(in)   :: green_leaf_factor
    !----- Local variables. ----------------------------------------------------------------!
    integer                                         :: iparallel
    integer                                         :: dsetrank
-   integer                                         :: hdferr
    logical                                         :: foundvar
    integer                                         :: ico
-   integer                                         :: ipft
    !---------------------------------------------------------------------------------------!
 
 
@@ -4820,6 +5036,8 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                      ,'TODAY_GPP_LIGHTMAX        ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%today_gpp_moistmax                                            &
                      ,'TODAY_GPP_MOISTMAX        ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%today_gpp_mlmax                                               &
+                     ,'TODAY_GPP_MLMAX           ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%today_nppleaf                                                 &
                      ,'TODAY_NPPLEAF             ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%today_nppfroot                                                &
@@ -4834,16 +5052,33 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                      ,'TODAY_NPPWOOD             ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%today_nppdaily                                                &
                      ,'TODAY_NPPDAILY            ',dsetrank,iparallel,.true. ,foundvar)
-   call hdf_getslab_r(cpatch%growth_respiration                                            &
-                     ,'GROWTH_RESPIRATION        ',dsetrank,iparallel,.true. ,foundvar)
-   call hdf_getslab_r(cpatch%storage_respiration                                           &
-                     ,'STORAGE_RESPIRATION       ',dsetrank,iparallel,.true. ,foundvar)
-   call hdf_getslab_r(cpatch%vleaf_respiration                                             &
-                     ,'VLEAF_RESPIRATION         ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%leaf_growth_resp                                              &
+                     ,'LEAF_GROWTH_RESP   ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%root_growth_resp                                              &
+                     ,'ROOT_GROWTH_RESP   ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%sapa_growth_resp                                              &
+                     ,'SAPA_GROWTH_RESP   ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%sapb_growth_resp                                              &
+                     ,'SAPB_GROWTH_RESP   ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%leaf_storage_resp                                             &
+                     ,'LEAF_STORAGE_RESP       ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%root_storage_resp                                             &
+                     ,'ROOT_STORAGE_RESP       ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%sapa_storage_resp                                             &
+                     ,'SAPA_STORAGE_RESP       ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%sapb_storage_resp                                             &
+                     ,'SAPB_STORAGE_RESP       ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%monthly_dndt                                                  &
                      ,'MONTHLY_DNDT              ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%monthly_dlnndt                                                &
                      ,'MONTHLY_DLNNDT            ',dsetrank,iparallel,.true. ,foundvar)
+
+   call hdf_getslab_r(cpatch%par_level_beam                                                &
+                     ,'PAR_LEVEL_BEAM              ',dsetrank,iparallel,.false. ,foundvar)
+   call hdf_getslab_r(cpatch%par_level_diffd                                               &
+                     ,'PAR_LEVEL_DIFFD             ',dsetrank,iparallel,.false. ,foundvar)
+   call hdf_getslab_r(cpatch%par_level_diffu                                               &
+                     ,'PAR_LEVEL_DIFFU             ',dsetrank,iparallel,.false. ,foundvar)
 
    call hdf_getslab_r(cpatch%light_level                                                   &
                      ,'LIGHT_LEVEL               ',dsetrank,iparallel,.true. ,foundvar)
@@ -4885,6 +5120,12 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                      ,'A_OPEN                    ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%A_closed                                                      &
                      ,'A_CLOSED                  ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%A_light                                                       &
+                     ,'A_LIGHT                   ',dsetrank,iparallel,.false. ,foundvar)
+   call hdf_getslab_r(cpatch%A_rubp                                                        &
+                     ,'A_RUBP                    ',dsetrank,iparallel,.false. ,foundvar)
+   call hdf_getslab_r(cpatch%A_co2                                                         &
+                     ,'A_CO2                     ',dsetrank,iparallel,.false. ,foundvar)
    call hdf_getslab_r(cpatch%psi_open                                                      &
                      ,'PSI_OPEN                  ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%psi_closed                                                    &
@@ -4951,12 +5192,22 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'DMEAN_LEAF_RESP_CO        ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%dmean_root_resp                                            &
                         ,'DMEAN_ROOT_RESP_CO        ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%dmean_growth_resp                                          &
-                        ,'DMEAN_GROWTH_RESP_CO      ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%dmean_storage_resp                                         &
-                        ,'DMEAN_STORAGE_RESP_CO     ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%dmean_vleaf_resp                                           &
-                        ,'DMEAN_VLEAF_RESP_CO       ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_leaf_growth_resp                                     &
+                        ,'DMEAN_LEAF_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_root_growth_resp                                     &
+                        ,'DMEAN_ROOT_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_sapa_growth_resp                                     &
+                        ,'DMEAN_SAPA_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_sapb_growth_resp                                     &
+                        ,'DMEAN_SAPB_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_leaf_storage_resp                                    &
+                        ,'DMEAN_LEAF_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_root_storage_resp                                    &
+                        ,'DMEAN_ROOT_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_sapa_storage_resp                                    &
+                        ,'DMEAN_SAPA_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_sapb_storage_resp                                    &
+                        ,'DMEAN_SAPB_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%dmean_plresp                                               &
                         ,'DMEAN_PLRESP_CO           ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%dmean_leaf_energy                                          &
@@ -4993,6 +5244,18 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'DMEAN_FSW_CO              ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%dmean_fsn                                                  &
                         ,'DMEAN_FSN_CO              ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_a_open                                               &
+                        ,'DMEAN_A_OPEN_CO           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_a_closed                                             &
+                        ,'DMEAN_A_CLOSED_CO         ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_a_net                                                &
+                        ,'DMEAN_A_NET_CO            ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_a_light                                              &
+                        ,'DMEAN_A_LIGHT_CO          ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_a_rubp                                               &
+                        ,'DMEAN_A_RUBP_CO           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_a_co2                                                &
+                        ,'DMEAN_A_CO2_CO            ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%dmean_psi_open                                             &
                         ,'DMEAN_PSI_OPEN_CO         ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%dmean_psi_closed                                           &
@@ -5011,6 +5274,15 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'DMEAN_PAR_L_BEAM_CO       ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%dmean_par_l_diff                                           &
                         ,'DMEAN_PAR_L_DIFF_CO       ',dsetrank,iparallel,.false.,foundvar)
+
+      call hdf_getslab_r(cpatch%dmean_par_level_beam                                       &
+                        ,'DMEAN_PAR_LEVEL_BEAM_CO   ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_par_level_diffu                                       &
+                        ,'DMEAN_PAR_LEVEL_DIFFU_CO   ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%dmean_par_level_diffd                                       &
+                        ,'DMEAN_PAR_LEVEL_DIFFD_CO   ',dsetrank,iparallel,.false.,foundvar)
+
+
       call hdf_getslab_r(cpatch%dmean_rshort_l                                             &
                         ,'DMEAN_RSHORT_L_CO         ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%dmean_rlong_l                                              &
@@ -5064,12 +5336,22 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'MMEAN_LEAF_RESP_CO        ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%mmean_root_resp                                            &
                         ,'MMEAN_ROOT_RESP_CO        ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%mmean_growth_resp                                          &
-                        ,'MMEAN_GROWTH_RESP_CO      ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%mmean_storage_resp                                         &
-                        ,'MMEAN_STORAGE_RESP_CO     ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%mmean_vleaf_resp                                           &
-                        ,'MMEAN_VLEAF_RESP_CO       ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_leaf_growth_resp                                     &
+                        ,'MMEAN_LEAF_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_root_growth_resp                                     &
+                        ,'MMEAN_ROOT_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_sapa_growth_resp                                     &
+                        ,'MMEAN_SAPA_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_sapb_growth_resp                                     &
+                        ,'MMEAN_SAPB_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_leaf_storage_resp                                    &
+                        ,'MMEAN_LEAF_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_root_storage_resp                                    &
+                        ,'MMEAN_ROOT_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_sapa_storage_resp                                    &
+                        ,'MMEAN_SAPA_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_sapb_storage_resp                                    &
+                        ,'MMEAN_SAPB_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%mmean_plresp                                               &
                         ,'MMEAN_PLRESP_CO           ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%mmean_leaf_energy                                          &
@@ -5106,6 +5388,18 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'MMEAN_FSW_CO              ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%mmean_fsn                                                  &
                         ,'MMEAN_FSN_CO              ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_a_open                                               &
+                        ,'MMEAN_A_OPEN_CO           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_a_closed                                             &
+                        ,'MMEAN_A_CLOSED_CO         ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_a_net                                                &
+                        ,'MMEAN_A_NET_CO            ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_a_light                                              &
+                        ,'MMEAN_A_LIGHT_CO          ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_a_rubp                                               &
+                        ,'MMEAN_A_RUBP_CO           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_a_co2                                                &
+                        ,'MMEAN_A_CO2_CO            ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%mmean_psi_open                                             &
                         ,'MMEAN_PSI_OPEN_CO         ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%mmean_psi_closed                                           &
@@ -5124,6 +5418,14 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'MMEAN_PAR_L_BEAM_CO       ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%mmean_par_l_diff                                           &
                         ,'MMEAN_PAR_L_DIFF_CO       ',dsetrank,iparallel,.false.,foundvar)
+
+      call hdf_getslab_r(cpatch%mmean_par_level_beam                                       &
+                        ,'MMEAN_PAR_LEVEL_BEAM_CO   ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_par_level_diffu                                       &
+                        ,'MMEAN_PAR_LEVEL_DIFFU_CO   ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%mmean_par_level_diffd                                       &
+                        ,'MMEAN_PAR_LEVEL_DIFFD_CO   ',dsetrank,iparallel,.false.,foundvar)
+
       call hdf_getslab_r(cpatch%mmean_rshort_l                                             &
                         ,'MMEAN_RSHORT_L_CO         ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%mmean_rlong_l                                              &
@@ -5213,6 +5515,8 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                      ,'CB_LIGHTMAX               ',dsetrank,iparallel,.true. ,foundvar)
    call hdf_getslab_r(cpatch%cb_moistmax                                                   &
                      ,'CB_MOISTMAX               ',dsetrank,iparallel,.true. ,foundvar)
+   call hdf_getslab_r(cpatch%cb_mlmax                                                      &
+                     ,'CB_MLMAX                  ',dsetrank,iparallel,.true. ,foundvar)
    !---------------------------------------------------------------------------------------!
    !---------------------------------------------------------------------------------------!
    !---------------------------------------------------------------------------------------!
@@ -5322,12 +5626,22 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'QMEAN_LEAF_RESP_CO        ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%qmean_root_resp                                            &
                         ,'QMEAN_ROOT_RESP_CO        ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%qmean_growth_resp                                          &
-                        ,'QMEAN_GROWTH_RESP_CO      ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%qmean_storage_resp                                         &
-                        ,'QMEAN_STORAGE_RESP_CO     ',dsetrank,iparallel,.false.,foundvar)
-      call hdf_getslab_r(cpatch%qmean_vleaf_resp                                           &
-                        ,'QMEAN_VLEAF_RESP_CO       ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_leaf_growth_resp                                     &
+                        ,'QMEAN_LEAF_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_root_growth_resp                                     &
+                        ,'QMEAN_ROOT_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_sapa_growth_resp                                     &
+                        ,'QMEAN_SAPA_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_sapb_growth_resp                                     &
+                        ,'QMEAN_SAPB_GROWTH_RESP_CO ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_leaf_storage_resp                                    &
+                        ,'QMEAN_LEAF_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_root_storage_resp                                    &
+                        ,'QMEAN_ROOT_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_sapa_storage_resp                                    &
+                        ,'QMEAN_SAPA_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_sapb_storage_resp                                    &
+                        ,'QMEAN_SAPB_STORAGE_RESP_CO',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%qmean_plresp                                               &
                         ,'QMEAN_PLRESP_CO           ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%qmean_leaf_energy                                          &
@@ -5364,6 +5678,18 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'QMEAN_FSW_CO              ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%qmean_fsn                                                  &
                         ,'QMEAN_FSN_CO              ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_a_open                                               &
+                        ,'QMEAN_A_OPEN_CO           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_a_closed                                             &
+                        ,'QMEAN_A_CLOSED_CO         ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_a_net                                                &
+                        ,'QMEAN_A_NET_CO            ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_a_light                                              &
+                        ,'QMEAN_A_LIGHT_CO          ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_a_rubp                                               &
+                        ,'QMEAN_A_RUBP_CO           ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_a_co2                                                &
+                        ,'QMEAN_A_CO2_CO            ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%qmean_psi_open                                             &
                         ,'QMEAN_PSI_OPEN_CO         ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%qmean_psi_closed                                           &
@@ -5382,6 +5708,15 @@ subroutine fill_history_patch(cpatch,paco_index,ncohorts_global,green_leaf_facto
                         ,'QMEAN_PAR_L_BEAM_CO       ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%qmean_par_l_diff                                           &
                         ,'QMEAN_PAR_L_DIFF_CO       ',dsetrank,iparallel,.false.,foundvar)
+
+      call hdf_getslab_r(cpatch%qmean_par_level_beam                                       &
+                        ,'QMEAN_PAR_LEVEL_BEAM_CO   ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_par_level_diffu                                       &
+                        ,'QMEAN_PAR_LEVEL_DIFFU_CO   ',dsetrank,iparallel,.false.,foundvar)
+      call hdf_getslab_r(cpatch%qmean_par_level_diffd                                       &
+                        ,'QMEAN_PAR_LEVEL_DIFFD_CO   ',dsetrank,iparallel,.false.,foundvar)
+
+
       call hdf_getslab_r(cpatch%qmean_rshort_l                                             &
                         ,'QMEAN_RSHORT_L_CO         ',dsetrank,iparallel,.false.,foundvar)
       call hdf_getslab_r(cpatch%qmean_rlong_l                                              &

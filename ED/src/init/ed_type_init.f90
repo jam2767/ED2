@@ -94,10 +94,12 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
    cpatch%cb               (1:12,ico) = 1.0
    cpatch%cb_lightmax      (1:12,ico) = 1.0
    cpatch%cb_moistmax      (1:12,ico) = 1.0
+   cpatch%cb_mlmax         (1:12,ico) = 1.0
    cpatch%cbr_bar               (ico) = 1.0
    cpatch%cb                 (13,ico) = 0.0
    cpatch%cb_lightmax        (13,ico) = 0.0
    cpatch%cb_moistmax        (13,ico) = 0.0
+   cpatch%cb_mlmax           (13,ico) = 0.0
    !---------------------------------------------------------------------------------------!
 
 
@@ -141,15 +143,26 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
    cpatch%today_gpp_pot         (ico) = 0.0
    cpatch%today_gpp_lightmax    (ico) = 0.0
    cpatch%today_gpp_moistmax    (ico) = 0.0
+   cpatch%today_gpp_mlmax       (ico) = 0.0
    cpatch%light_level           (ico) = 0.0
    cpatch%light_level_beam      (ico) = 0.0
    cpatch%light_level_diff      (ico) = 0.0
+
+   cpatch%par_level_beam        (ico) = 0.0
+   cpatch%par_level_diffu       (ico) = 0.0
+   cpatch%par_level_diffd       (ico) = 0.0
+
    cpatch%gpp                   (ico) = 0.0
    cpatch%leaf_respiration      (ico) = 0.0
    cpatch%root_respiration      (ico) = 0.0
-   cpatch%growth_respiration    (ico) = 0.0
-   cpatch%storage_respiration   (ico) = 0.0
-   cpatch%vleaf_respiration     (ico) = 0.0
+   cpatch%leaf_growth_resp      (ico) = 0.0
+   cpatch%root_growth_resp      (ico) = 0.0
+   cpatch%sapa_growth_resp      (ico) = 0.0
+   cpatch%sapb_growth_resp      (ico) = 0.0
+   cpatch%leaf_storage_resp     (ico) = 0.0
+   cpatch%root_storage_resp     (ico) = 0.0
+   cpatch%sapa_storage_resp     (ico) = 0.0
+   cpatch%sapb_storage_resp     (ico) = 0.0
    cpatch%monthly_dndt          (ico) = 0.0
    cpatch%monthly_dlnndt        (ico) = 0.0
    cpatch%mort_rate           (:,ico) = 0.0
@@ -177,6 +190,9 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
    cpatch%wood_gbw              (ico) = 0.0
    cpatch%A_open                (ico) = 0.0
    cpatch%A_closed              (ico) = 0.0
+   cpatch%A_light               (ico) = 0.0
+   cpatch%A_rubp                (ico) = 0.0
+   cpatch%A_co2                 (ico) = 0.0
    cpatch%psi_open              (ico) = 0.0
    cpatch%psi_closed            (ico) = 0.0
    cpatch%water_supply          (ico) = 0.0
@@ -222,9 +238,14 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
    cpatch%fmean_npp               (ico) = 0.0
    cpatch%fmean_leaf_resp         (ico) = 0.0
    cpatch%fmean_root_resp         (ico) = 0.0
-   cpatch%fmean_growth_resp       (ico) = 0.0
-   cpatch%fmean_storage_resp      (ico) = 0.0
-   cpatch%fmean_vleaf_resp        (ico) = 0.0
+   cpatch%fmean_leaf_growth_resp  (ico) = 0.0
+   cpatch%fmean_root_growth_resp  (ico) = 0.0
+   cpatch%fmean_sapa_growth_resp  (ico) = 0.0
+   cpatch%fmean_sapb_growth_resp  (ico) = 0.0
+   cpatch%fmean_leaf_storage_resp (ico) = 0.0
+   cpatch%fmean_root_storage_resp (ico) = 0.0
+   cpatch%fmean_sapa_storage_resp (ico) = 0.0
+   cpatch%fmean_sapb_storage_resp (ico) = 0.0
    cpatch%fmean_plresp            (ico) = 0.0
    cpatch%fmean_leaf_energy       (ico) = 0.0
    cpatch%fmean_leaf_water        (ico) = 0.0
@@ -243,12 +264,23 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
    cpatch%fmean_fs_open           (ico) = 0.0
    cpatch%fmean_fsw               (ico) = 0.0
    cpatch%fmean_fsn               (ico) = 0.0
+   cpatch%fmean_a_open            (ico) = 0.0
+   cpatch%fmean_a_closed          (ico) = 0.0
+   cpatch%fmean_a_net             (ico) = 0.0
+   cpatch%fmean_a_light           (ico) = 0.0
+   cpatch%fmean_a_rubp            (ico) = 0.0
+   cpatch%fmean_a_co2             (ico) = 0.0
    cpatch%fmean_psi_open          (ico) = 0.0
    cpatch%fmean_psi_closed        (ico) = 0.0
    cpatch%fmean_water_supply      (ico) = 0.0
    cpatch%fmean_light_level       (ico) = 0.0
    cpatch%fmean_light_level_beam  (ico) = 0.0
    cpatch%fmean_light_level_diff  (ico) = 0.0
+
+   cpatch%fmean_par_level_beam    (ico) = 0.0
+   cpatch%fmean_par_level_diffu   (ico) = 0.0
+   cpatch%fmean_par_level_diffd   (ico) = 0.0
+
    cpatch%fmean_par_l             (ico) = 0.0
    cpatch%fmean_par_l_beam        (ico) = 0.0
    cpatch%fmean_par_l_diff        (ico) = 0.0
@@ -266,6 +298,9 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
    cpatch%fmean_vapor_wc          (ico) = 0.0
    cpatch%fmean_intercepted_aw    (ico) = 0.0
    cpatch%fmean_wshed_wg          (ico) = 0.0
+
+   cpatch%fmean_lai               (ico) = 0.0
+   cpatch%fmean_bdead             (ico) = 0.0
    !---------------------------------------------------------------------------------------!
 
 
@@ -286,9 +321,14 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
       cpatch%dmean_npp               (ico) = 0.0
       cpatch%dmean_leaf_resp         (ico) = 0.0
       cpatch%dmean_root_resp         (ico) = 0.0
-      cpatch%dmean_growth_resp       (ico) = 0.0
-      cpatch%dmean_storage_resp      (ico) = 0.0
-      cpatch%dmean_vleaf_resp        (ico) = 0.0
+      cpatch%dmean_leaf_growth_resp  (ico) = 0.0
+      cpatch%dmean_root_growth_resp  (ico) = 0.0
+      cpatch%dmean_sapa_growth_resp  (ico) = 0.0
+      cpatch%dmean_sapb_growth_resp  (ico) = 0.0
+      cpatch%dmean_leaf_storage_resp (ico) = 0.0
+      cpatch%dmean_root_storage_resp (ico) = 0.0
+      cpatch%dmean_sapa_storage_resp (ico) = 0.0
+      cpatch%dmean_sapb_storage_resp (ico) = 0.0
       cpatch%dmean_plresp            (ico) = 0.0
       cpatch%dmean_leaf_energy       (ico) = 0.0
       cpatch%dmean_leaf_water        (ico) = 0.0
@@ -307,12 +347,23 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
       cpatch%dmean_fs_open           (ico) = 0.0
       cpatch%dmean_fsw               (ico) = 0.0
       cpatch%dmean_fsn               (ico) = 0.0
+      cpatch%dmean_a_open            (ico) = 0.0
+      cpatch%dmean_a_closed          (ico) = 0.0
+      cpatch%dmean_a_net             (ico) = 0.0
+      cpatch%dmean_a_light           (ico) = 0.0
+      cpatch%dmean_a_rubp            (ico) = 0.0
+      cpatch%dmean_a_co2             (ico) = 0.0
       cpatch%dmean_psi_open          (ico) = 0.0
       cpatch%dmean_psi_closed        (ico) = 0.0
       cpatch%dmean_water_supply      (ico) = 0.0
       cpatch%dmean_light_level       (ico) = 0.0
       cpatch%dmean_light_level_beam  (ico) = 0.0
       cpatch%dmean_light_level_diff  (ico) = 0.0
+
+      cpatch%dmean_par_level_beam    (ico) = 0.0
+      cpatch%dmean_par_level_diffu   (ico) = 0.0
+      cpatch%dmean_par_level_diffd   (ico) = 0.0
+
       cpatch%dmean_par_l             (ico) = 0.0
       cpatch%dmean_par_l_beam        (ico) = 0.0
       cpatch%dmean_par_l_diff        (ico) = 0.0
@@ -343,9 +394,14 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
       cpatch%mmean_npp                 (ico) = 0.0
       cpatch%mmean_leaf_resp           (ico) = 0.0
       cpatch%mmean_root_resp           (ico) = 0.0
-      cpatch%mmean_growth_resp         (ico) = 0.0
-      cpatch%mmean_storage_resp        (ico) = 0.0
-      cpatch%mmean_vleaf_resp          (ico) = 0.0
+      cpatch%mmean_leaf_growth_resp    (ico) = 0.0
+      cpatch%mmean_root_growth_resp    (ico) = 0.0
+      cpatch%mmean_sapa_growth_resp    (ico) = 0.0
+      cpatch%mmean_sapb_growth_resp    (ico) = 0.0
+      cpatch%mmean_leaf_storage_resp   (ico) = 0.0
+      cpatch%mmean_root_storage_resp   (ico) = 0.0
+      cpatch%mmean_sapa_storage_resp   (ico) = 0.0
+      cpatch%mmean_sapb_storage_resp   (ico) = 0.0
       cpatch%mmean_plresp              (ico) = 0.0
       cpatch%mmean_leaf_energy         (ico) = 0.0
       cpatch%mmean_leaf_water          (ico) = 0.0
@@ -364,12 +420,23 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
       cpatch%mmean_fs_open             (ico) = 0.0
       cpatch%mmean_fsw                 (ico) = 0.0
       cpatch%mmean_fsn                 (ico) = 0.0
+      cpatch%mmean_a_open              (ico) = 0.0
+      cpatch%mmean_a_closed            (ico) = 0.0
+      cpatch%mmean_a_net               (ico) = 0.0
+      cpatch%mmean_a_light             (ico) = 0.0
+      cpatch%mmean_a_rubp              (ico) = 0.0
+      cpatch%mmean_a_co2               (ico) = 0.0
       cpatch%mmean_psi_open            (ico) = 0.0
       cpatch%mmean_psi_closed          (ico) = 0.0
       cpatch%mmean_water_supply        (ico) = 0.0
       cpatch%mmean_light_level         (ico) = 0.0
       cpatch%mmean_light_level_beam    (ico) = 0.0
       cpatch%mmean_light_level_diff    (ico) = 0.0
+
+      cpatch%mmean_par_level_beam      (ico) = 0.0
+      cpatch%mmean_par_level_diffu     (ico) = 0.0
+      cpatch%mmean_par_level_diffd     (ico) = 0.0
+
       cpatch%mmean_par_l               (ico) = 0.0
       cpatch%mmean_par_l_beam          (ico) = 0.0
       cpatch%mmean_par_l_diff          (ico) = 0.0
@@ -425,9 +492,14 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
       cpatch%qmean_npp               (:,ico) = 0.0
       cpatch%qmean_leaf_resp         (:,ico) = 0.0
       cpatch%qmean_root_resp         (:,ico) = 0.0
-      cpatch%qmean_growth_resp       (:,ico) = 0.0
-      cpatch%qmean_storage_resp      (:,ico) = 0.0
-      cpatch%qmean_vleaf_resp        (:,ico) = 0.0
+      cpatch%qmean_leaf_growth_resp  (:,ico) = 0.0
+      cpatch%qmean_root_growth_resp  (:,ico) = 0.0
+      cpatch%qmean_sapa_growth_resp  (:,ico) = 0.0
+      cpatch%qmean_sapb_growth_resp  (:,ico) = 0.0
+      cpatch%qmean_leaf_storage_resp (:,ico) = 0.0
+      cpatch%qmean_root_storage_resp (:,ico) = 0.0
+      cpatch%qmean_sapa_storage_resp (:,ico) = 0.0
+      cpatch%qmean_sapb_storage_resp (:,ico) = 0.0
       cpatch%qmean_plresp            (:,ico) = 0.0
       cpatch%qmean_leaf_energy       (:,ico) = 0.0
       cpatch%qmean_leaf_water        (:,ico) = 0.0
@@ -446,12 +518,23 @@ subroutine init_ed_cohort_vars(cpatch,ico, lsl)
       cpatch%qmean_fs_open           (:,ico) = 0.0
       cpatch%qmean_fsw               (:,ico) = 0.0
       cpatch%qmean_fsn               (:,ico) = 0.0
+      cpatch%qmean_a_open            (:,ico) = 0.0
+      cpatch%qmean_a_closed          (:,ico) = 0.0
+      cpatch%qmean_a_net             (:,ico) = 0.0
+      cpatch%qmean_a_light           (:,ico) = 0.0
+      cpatch%qmean_a_rubp            (:,ico) = 0.0
+      cpatch%qmean_a_co2             (:,ico) = 0.0
       cpatch%qmean_psi_open          (:,ico) = 0.0
       cpatch%qmean_psi_closed        (:,ico) = 0.0
       cpatch%qmean_water_supply      (:,ico) = 0.0
       cpatch%qmean_light_level       (:,ico) = 0.0
       cpatch%qmean_light_level_beam  (:,ico) = 0.0
       cpatch%qmean_light_level_diff  (:,ico) = 0.0
+
+      cpatch%qmean_par_level_beam    (:,ico) = 0.0
+      cpatch%qmean_par_level_diffu   (:,ico) = 0.0
+      cpatch%qmean_par_level_diffd   (:,ico) = 0.0
+
       cpatch%qmean_par_l             (:,ico) = 0.0
       cpatch%qmean_par_l_beam        (:,ico) = 0.0
       cpatch%qmean_par_l_diff        (:,ico) = 0.0
@@ -677,7 +760,11 @@ subroutine init_ed_patch_vars(csite,ipaa,ipaz,lsl)
    csite%can_vpdef                       (ipaa:ipaz) = 0.0
    csite%can_temp                        (ipaa:ipaz) = 0.0
    csite%can_temp_pv                     (ipaa:ipaz) = 0.0
+   csite%can_shv                         (ipaa:ipaz) = 0.0
+   csite%can_co2                         (ipaa:ipaz) = 0.0
    csite%can_rhos                        (ipaa:ipaz) = 0.0
+   csite%can_prss                        (ipaa:ipaz) = 0.0
+   csite%can_theta                       (ipaa:ipaz) = 0.0
    csite%can_depth                       (ipaa:ipaz) = 0.0
    csite%opencan_frac                    (ipaa:ipaz) = 0.0
    csite%ground_shv                      (ipaa:ipaz) = 0.0
@@ -688,6 +775,7 @@ subroutine init_ed_patch_vars(csite,ipaa,ipaz,lsl)
    csite%ggveg                           (ipaa:ipaz) = 0.0
    csite%ggnet                           (ipaa:ipaz) = 0.0
    csite%ggsoil                          (ipaa:ipaz) = 0.0
+   csite%rough                           (ipaa:ipaz) = 0.0
    !---------------------------------------------------------------------------------------!
 
 
@@ -1034,8 +1122,7 @@ end subroutine init_ed_patch_vars
 subroutine init_ed_site_vars(cpoly, lat)
    use ed_state_vars, only : polygontype      ! ! intent(in)
    use ed_max_dims  , only : n_pft            & ! intent(in)
-                           , n_dbh            & ! intent(in)
-                           , n_dist_types     ! ! intent(in)
+                           , n_dbh            ! ! intent(in)
    use pft_coms     , only : agri_stock       & ! intent(in)
                            , plantation_stock ! ! intent(in)
    use grid_coms    , only : nzs              & ! intent(in)
@@ -1123,13 +1210,12 @@ subroutine init_ed_site_vars(cpoly, lat)
    cpoly%agri_stocking_density            (:) = 10.0
    cpoly%plantation_stocking_pft          (:) = plantation_stock
    cpoly%plantation_stocking_density      (:) = 4.0
+   cpoly%primary_harvest_target           (:) = 0.0
+   cpoly%secondary_harvest_target         (:) = 0.0
    cpoly%primary_harvest_memory           (:) = 0.0
    cpoly%secondary_harvest_memory         (:) = 0.0
-   cpoly%fire_disturbance_rate            (:) = 0.0
    cpoly%ignition_rate                    (:) = 0.0
    cpoly%lambda_fire                    (:,:) = 0.0
-   cpoly%nat_disturbance_rate             (:) = 0.0
-   cpoly%nat_dist_type                    (:) = 0
    cpoly%disturbance_memory           (:,:,:) = 0.0
    cpoly%disturbance_rates            (:,:,:) = 0.0
    !---------------------------------------------------------------------------------------!
@@ -1321,14 +1407,14 @@ subroutine init_ed_poly_vars(cgrid)
       !------------------------------------------------------------------------------------!
       !       Hydrology stuff.                                                             !
       !------------------------------------------------------------------------------------!
- !     cgrid%wbar     (ipy) = 0.0
- !     cgrid%Te       (ipy) = 0.0
- !     cgrid%zbar     (ipy) = 0.0
- !     cgrid%sheat    (ipy) = 0.0
- !     cgrid%baseflow (ipy) = 0.0
- !     cgrid%runoff   (ipy) = 0.0
- !     cgrid%qrunoff  (ipy) = 0.0
- !     cgrid%swliq    (ipy) = 0.0
+      !cgrid%wbar     (ipy) = 0.0
+      !cgrid%Te       (ipy) = 0.0
+      cgrid%zbar     (ipy) = 0.0
+      cgrid%sheat    (ipy) = 0.0
+      cgrid%baseflow (ipy) = 0.0
+      cgrid%runoff   (ipy) = 0.0
+      cgrid%qrunoff  (ipy) = 0.0
+      cgrid%swliq    (ipy) = 0.0
       !------------------------------------------------------------------------------------!
 
 
@@ -1393,9 +1479,14 @@ subroutine init_ed_poly_vars(cgrid)
       cgrid%fmean_npp                  (ipy) = 0.0
       cgrid%fmean_leaf_resp            (ipy) = 0.0
       cgrid%fmean_root_resp            (ipy) = 0.0
-      cgrid%fmean_growth_resp          (ipy) = 0.0
-      cgrid%fmean_storage_resp         (ipy) = 0.0
-      cgrid%fmean_vleaf_resp           (ipy) = 0.0
+      cgrid%fmean_leaf_growth_resp     (ipy) = 0.0
+      cgrid%fmean_root_growth_resp     (ipy) = 0.0
+      cgrid%fmean_sapa_growth_resp     (ipy) = 0.0
+      cgrid%fmean_sapb_growth_resp     (ipy) = 0.0
+      cgrid%fmean_leaf_storage_resp    (ipy) = 0.0
+      cgrid%fmean_root_storage_resp    (ipy) = 0.0
+      cgrid%fmean_sapa_storage_resp    (ipy) = 0.0
+      cgrid%fmean_sapb_storage_resp    (ipy) = 0.0
       cgrid%fmean_plresp               (ipy) = 0.0
       cgrid%fmean_leaf_energy          (ipy) = 0.0
       cgrid%fmean_leaf_water           (ipy) = 0.0
@@ -1414,6 +1505,12 @@ subroutine init_ed_poly_vars(cgrid)
       cgrid%fmean_fs_open              (ipy) = 0.0
       cgrid%fmean_fsw                  (ipy) = 0.0
       cgrid%fmean_fsn                  (ipy) = 0.0
+      cgrid%fmean_a_open               (ipy) = 0.0
+      cgrid%fmean_a_closed             (ipy) = 0.0
+      cgrid%fmean_a_net                (ipy) = 0.0
+      cgrid%fmean_a_light              (ipy) = 0.0
+      cgrid%fmean_a_rubp               (ipy) = 0.0
+      cgrid%fmean_a_co2                (ipy) = 0.0
       cgrid%fmean_psi_open             (ipy) = 0.0
       cgrid%fmean_psi_closed           (ipy) = 0.0
       cgrid%fmean_water_supply         (ipy) = 0.0
@@ -1433,6 +1530,10 @@ subroutine init_ed_poly_vars(cgrid)
       cgrid%fmean_vapor_wc             (ipy) = 0.0
       cgrid%fmean_intercepted_aw       (ipy) = 0.0
       cgrid%fmean_wshed_wg             (ipy) = 0.0
+
+      cgrid%fmean_lai                  (ipy) = 0.0
+      cgrid%fmean_bdead                (ipy) = 0.0
+
       cgrid%fmean_rh                   (ipy) = 0.0
       cgrid%fmean_cwd_rh               (ipy) = 0.0
       cgrid%fmean_nep                  (ipy) = 0.0
@@ -1534,9 +1635,14 @@ subroutine init_ed_poly_vars(cgrid)
          cgrid%dmean_npp                  (ipy) = 0.0
          cgrid%dmean_leaf_resp            (ipy) = 0.0
          cgrid%dmean_root_resp            (ipy) = 0.0
-         cgrid%dmean_growth_resp          (ipy) = 0.0
-         cgrid%dmean_storage_resp         (ipy) = 0.0
-         cgrid%dmean_vleaf_resp           (ipy) = 0.0
+         cgrid%dmean_leaf_growth_resp     (ipy) = 0.0
+         cgrid%dmean_root_growth_resp     (ipy) = 0.0
+         cgrid%dmean_sapa_growth_resp     (ipy) = 0.0
+         cgrid%dmean_sapb_growth_resp     (ipy) = 0.0
+         cgrid%dmean_leaf_storage_resp    (ipy) = 0.0
+         cgrid%dmean_root_storage_resp    (ipy) = 0.0
+         cgrid%dmean_sapa_storage_resp    (ipy) = 0.0
+         cgrid%dmean_sapb_storage_resp    (ipy) = 0.0
          cgrid%dmean_plresp               (ipy) = 0.0
          cgrid%dmean_leaf_energy          (ipy) = 0.0
          cgrid%dmean_leaf_water           (ipy) = 0.0
@@ -1555,6 +1661,12 @@ subroutine init_ed_poly_vars(cgrid)
          cgrid%dmean_fs_open              (ipy) = 0.0
          cgrid%dmean_fsw                  (ipy) = 0.0
          cgrid%dmean_fsn                  (ipy) = 0.0
+         cgrid%dmean_a_open               (ipy) = 0.0
+         cgrid%dmean_a_closed             (ipy) = 0.0
+         cgrid%dmean_a_net                (ipy) = 0.0
+         cgrid%dmean_a_light              (ipy) = 0.0
+         cgrid%dmean_a_rubp               (ipy) = 0.0
+         cgrid%dmean_a_co2                (ipy) = 0.0
          cgrid%dmean_psi_open             (ipy) = 0.0
          cgrid%dmean_psi_closed           (ipy) = 0.0
          cgrid%dmean_water_supply         (ipy) = 0.0
@@ -1662,9 +1774,14 @@ subroutine init_ed_poly_vars(cgrid)
          cgrid%mmean_npp                  (ipy) = 0.0
          cgrid%mmean_leaf_resp            (ipy) = 0.0
          cgrid%mmean_root_resp            (ipy) = 0.0
-         cgrid%mmean_growth_resp          (ipy) = 0.0
-         cgrid%mmean_storage_resp         (ipy) = 0.0
-         cgrid%mmean_vleaf_resp           (ipy) = 0.0
+         cgrid%mmean_leaf_growth_resp     (ipy) = 0.0
+         cgrid%mmean_root_growth_resp     (ipy) = 0.0
+         cgrid%mmean_sapa_growth_resp     (ipy) = 0.0
+         cgrid%mmean_sapb_growth_resp     (ipy) = 0.0
+         cgrid%mmean_leaf_storage_resp    (ipy) = 0.0
+         cgrid%mmean_root_storage_resp    (ipy) = 0.0
+         cgrid%mmean_sapa_storage_resp    (ipy) = 0.0
+         cgrid%mmean_sapb_storage_resp    (ipy) = 0.0
          cgrid%mmean_plresp               (ipy) = 0.0
          cgrid%mmean_leaf_energy          (ipy) = 0.0
          cgrid%mmean_leaf_water           (ipy) = 0.0
@@ -1683,6 +1800,12 @@ subroutine init_ed_poly_vars(cgrid)
          cgrid%mmean_fs_open              (ipy) = 0.0
          cgrid%mmean_fsw                  (ipy) = 0.0
          cgrid%mmean_fsn                  (ipy) = 0.0
+         cgrid%mmean_a_open               (ipy) = 0.0
+         cgrid%mmean_a_closed             (ipy) = 0.0
+         cgrid%mmean_a_net                (ipy) = 0.0
+         cgrid%mmean_a_light              (ipy) = 0.0
+         cgrid%mmean_a_rubp               (ipy) = 0.0
+         cgrid%mmean_a_co2                (ipy) = 0.0
          cgrid%mmean_psi_open             (ipy) = 0.0
          cgrid%mmean_psi_closed           (ipy) = 0.0
          cgrid%mmean_water_supply         (ipy) = 0.0
@@ -1844,9 +1967,14 @@ subroutine init_ed_poly_vars(cgrid)
          cgrid%qmean_npp                (:,ipy) = 0.0
          cgrid%qmean_leaf_resp          (:,ipy) = 0.0
          cgrid%qmean_root_resp          (:,ipy) = 0.0
-         cgrid%qmean_growth_resp        (:,ipy) = 0.0
-         cgrid%qmean_storage_resp       (:,ipy) = 0.0
-         cgrid%qmean_vleaf_resp         (:,ipy) = 0.0
+         cgrid%qmean_leaf_growth_resp   (:,ipy) = 0.0
+         cgrid%qmean_root_growth_resp   (:,ipy) = 0.0
+         cgrid%qmean_sapa_growth_resp   (:,ipy) = 0.0
+         cgrid%qmean_sapb_growth_resp   (:,ipy) = 0.0
+         cgrid%qmean_leaf_storage_resp  (:,ipy) = 0.0
+         cgrid%qmean_root_storage_resp  (:,ipy) = 0.0
+         cgrid%qmean_sapa_storage_resp  (:,ipy) = 0.0
+         cgrid%qmean_sapb_storage_resp  (:,ipy) = 0.0
          cgrid%qmean_plresp             (:,ipy) = 0.0
          cgrid%qmean_leaf_energy        (:,ipy) = 0.0
          cgrid%qmean_leaf_water         (:,ipy) = 0.0
@@ -1865,6 +1993,12 @@ subroutine init_ed_poly_vars(cgrid)
          cgrid%qmean_fs_open            (:,ipy) = 0.0
          cgrid%qmean_fsw                (:,ipy) = 0.0
          cgrid%qmean_fsn                (:,ipy) = 0.0
+         cgrid%qmean_a_open             (:,ipy) = 0.0
+         cgrid%qmean_a_closed           (:,ipy) = 0.0
+         cgrid%qmean_a_net              (:,ipy) = 0.0
+         cgrid%qmean_a_light            (:,ipy) = 0.0
+         cgrid%qmean_a_rubp             (:,ipy) = 0.0
+         cgrid%qmean_a_co2              (:,ipy) = 0.0
          cgrid%qmean_psi_open           (:,ipy) = 0.0
          cgrid%qmean_psi_closed         (:,ipy) = 0.0
          cgrid%qmean_water_supply       (:,ipy) = 0.0

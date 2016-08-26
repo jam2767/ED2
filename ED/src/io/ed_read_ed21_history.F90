@@ -59,6 +59,7 @@ subroutine read_ed21_history_file
                              , dbh2h                   & ! function
                              , dbh2bd                  ! ! function
    use fuse_fiss_utils, only : terminate_cohorts       ! ! subroutine
+   use disturb_coms   , only : ianth_disturb           ! ! intent(in)
 
    implicit none
 #if USE_HDF5
@@ -78,6 +79,7 @@ subroutine read_ed21_history_file
    integer, dimension(:) , allocatable :: paco_n
    integer, dimension(:) , allocatable :: paco_id
    integer, dimension(:) , allocatable :: islakesite
+   integer, dimension(:) , allocatable :: plantation
    integer                             :: year
    integer                             :: igr
    integer                             :: ipy
@@ -376,6 +378,8 @@ subroutine read_ed21_history_file
          is = 0
          siteloop: do isi=1,pysi_n(py_index)
 
+            si_index = pysi_id(py_index) + isi - 1
+
             if (islakesite(isi) == 0) then
                is=is+1
 
@@ -478,8 +482,6 @@ subroutine read_ed21_history_file
                                     ,dsetrank,iparallel,.true.,foundvar)
                   call hdf_getslab_r(csite%sum_chd   ,'SUM_CHD '                           &
                                     ,dsetrank,iparallel,.true.,foundvar)
-                  call hdf_getslab_i(csite%plantation,'PLANTATION '                        &
-                                    ,dsetrank,iparallel,.true.,foundvar)
 
                   call hdf_getslab_r(csite%fast_soil_C       ,'FAST_SOIL_C '               &
                                     ,dsetrank,iparallel,.true.,foundvar)
@@ -493,7 +495,41 @@ subroutine read_ed21_history_file
                                     ,dsetrank,iparallel,.true.,foundvar)
                   call hdf_getslab_r(csite%mineralized_soil_N,'MINERALIZED_SOIL_N '        &
                                     ,dsetrank,iparallel,.true.,foundvar)
+                  !------------------------------------------------------------------------!
 
+
+                  !------------------------------------------------------------------------!
+                  !     Check whether the history file is new or old.  We determine this   !
+                  ! by searching for variable plantation.  In case this variable isn't     !
+                  ! present, then it must be the new history.   Otherwise we correct the   !
+                  ! indices for secondary forests.                                         !
+                  !------------------------------------------------------------------------!
+                  allocate (plantation(csite%npatches))
+                  plantation(:) = 0
+                  call hdf_getslab_i(plantation ,'PLANTATION '                             &
+                                    ,dsetrank,iparallel,.false.,foundvar)
+                  if (foundvar) then
+                     do ipa=1,csite%npatches
+                        select case(csite%dist_type(ipa))
+                        case (2)
+                           !---------------------------------------------------------------!
+                           !     Secondary forests are now divided in three categories.    !
+                           !---------------------------------------------------------------!
+                           if (plantation(ipa) == 0 .and. ianth_disturb == 0) then
+                              csite%dist_type(ipa) = 5
+                           else if (plantation(ipa) == 0 .and. ianth_disturb == 1) then
+                              csite%dist_type(ipa) = 6
+                           else
+                              csite%dist_type(ipa) = 2
+                           end if
+                           !---------------------------------------------------------------!
+                        end select
+                        !------------------------------------------------------------------!
+                     end do
+                     !---------------------------------------------------------------------!
+                  end if
+                  deallocate(plantation)
+                  !------------------------------------------------------------------------!
 
                   !------------------------------------------------------------------------!
                   !     Loop over all sites and fill the patch-level variables.            !
@@ -629,9 +665,11 @@ subroutine read_ed21_history_file
                            cpatch%cb          (1:12,ico) = 1.0
                            cpatch%cb_lightmax (1:12,ico) = 1.0
                            cpatch%cb_moistmax (1:12,ico) = 1.0
+                           cpatch%cb_mlmax    (1:12,ico) = 1.0
                            cpatch%cb          (  13,ico) = 0.0
                            cpatch%cb_lightmax (  13,ico) = 0.0
                            cpatch%cb_moistmax (  13,ico) = 0.0
+                           cpatch%cb_mlmax    (  13,ico) = 0.0
                         end do
                         !------------------------------------------------------------------!
 
@@ -911,6 +949,7 @@ subroutine read_ed21_history_unstruct
    integer               , dimension(maxfiles)                  :: ngridpoly
    integer               , dimension(huge_polygon)              :: pyfile_list
    integer               , dimension(huge_polygon)              :: pyindx_list
+   integer               , dimension(  :)         , allocatable :: plantation
    integer               , dimension(  :)         , allocatable :: pclosest
    integer               , dimension(  :)         , allocatable :: psrcfile
    integer               , dimension(  :)         , allocatable :: pysi_n
@@ -1622,8 +1661,6 @@ subroutine read_ed21_history_unstruct
                                     ,dsetrank,iparallel,.true.,foundvar)
                   call hdf_getslab_r(csite%sum_chd           ,'SUM_CHD '                   &
                                     ,dsetrank,iparallel,.true.,foundvar)
-                  call hdf_getslab_i(csite%plantation        ,'PLANTATION '                &
-                                    ,dsetrank,iparallel,.true.,foundvar)
                   call hdf_getslab_r(csite%fast_soil_C       ,'FAST_SOIL_C '               &
                                     ,dsetrank,iparallel,.true.,foundvar)
                   call hdf_getslab_r(csite%slow_soil_C       ,'SLOW_SOIL_C '               &
@@ -1636,6 +1673,43 @@ subroutine read_ed21_history_unstruct
                                     ,dsetrank,iparallel,.true.,foundvar)
                   call hdf_getslab_r(csite%mineralized_soil_N,'MINERALIZED_SOIL_N '        &
                                     ,dsetrank,iparallel,.true.,foundvar)
+                  !------------------------------------------------------------------------!
+
+
+
+                  !------------------------------------------------------------------------!
+                  !     Check whether the history file is new or old.  We determine this   !
+                  ! by searching for variable plantation.  In case this variable isn't     !
+                  ! present, then it must be the new history.   Otherwise we correct the   !
+                  ! indices for secondary forests.                                         !
+                  !------------------------------------------------------------------------!
+                  allocate (plantation(csite%npatches))
+                  plantation(:) = 0
+                  call hdf_getslab_i(plantation ,'PLANTATION '                             &
+                                    ,dsetrank,iparallel,.false.,foundvar)
+                  if (foundvar) then
+                     do ipa=1,csite%npatches
+                        select case(csite%dist_type(ipa))
+                        case (2)
+                           !---------------------------------------------------------------!
+                           !     Secondary forests are now divided in three categories.    !
+                           !---------------------------------------------------------------!
+                           if (plantation(ipa) == 0 .and. ianth_disturb == 0) then
+                              csite%dist_type(ipa) = 5
+                           else if (plantation(ipa) == 0 .and. ianth_disturb == 1) then
+                              csite%dist_type(ipa) = 6
+                           else
+                              csite%dist_type(ipa) = 2
+                           end if
+                           !---------------------------------------------------------------!
+                        end select
+                        !------------------------------------------------------------------!
+                     end do
+                     !---------------------------------------------------------------------!
+                  end if
+                  deallocate(plantation)
+                  !------------------------------------------------------------------------!
+
 
                   !------------------------------------------------------------------------!
                   !     Check whether area should be re-scaled.                            !
@@ -1809,9 +1883,11 @@ subroutine read_ed21_history_unstruct
                            cpatch%cb          (1:12,ico) = 1.0
                            cpatch%cb_lightmax (1:12,ico) = 1.0
                            cpatch%cb_moistmax (1:12,ico) = 1.0
+                           cpatch%cb_mlmax    (1:12,ico) = 1.0
                            cpatch%cb          (  13,ico) = 0.0
                            cpatch%cb_lightmax (  13,ico) = 0.0
                            cpatch%cb_moistmax (  13,ico) = 0.0
+                           cpatch%cb_mlmax    (  13,ico) = 0.0
                         end do
                         !------------------------------------------------------------------!
 
@@ -2099,6 +2175,7 @@ subroutine read_ed21_polyclone
    integer               , dimension(maxfiles)                  :: ngridpoly
    integer               , dimension(huge_polygon)              :: pyfile_list
    integer               , dimension(huge_polygon)              :: pyindx_list
+   integer               , dimension(  :)         , allocatable :: plantation
    integer               , dimension(  :)         , allocatable :: pclosest
    integer               , dimension(  :)         , allocatable :: psrcfile
    integer               , dimension(  :)         , allocatable :: pysi_n
@@ -2746,8 +2823,6 @@ subroutine read_ed21_polyclone
                           ,dsetrank,iparallel,.true.,foundvar)
                      call hdf_getslab_r(csite%sum_chd           ,'SUM_CHD '                   &
                           ,dsetrank,iparallel,.true.,foundvar)
-                     call hdf_getslab_i(csite%plantation        ,'PLANTATION '                &
-                          ,dsetrank,iparallel,.true.,foundvar)
                      call hdf_getslab_r(csite%fast_soil_C       ,'FAST_SOIL_C '               &
                           ,dsetrank,iparallel,.true.,foundvar)
                      call hdf_getslab_r(csite%slow_soil_C       ,'SLOW_SOIL_C '               &
@@ -2760,6 +2835,43 @@ subroutine read_ed21_polyclone
                           ,dsetrank,iparallel,.true.,foundvar)
                      call hdf_getslab_r(csite%mineralized_soil_N,'MINERALIZED_SOIL_N '        &
                           ,dsetrank,iparallel,.true.,foundvar)
+
+
+
+
+                     !------------------------------------------------------------------------!
+                     !     Check whether the history file is new or old.  We determine this   !
+                     ! by searching for variable plantation.  In case this variable isn't     !
+                     ! present, then it must be the new history.   Otherwise we correct the   !
+                     ! indices for secondary forests.                                         !
+                     !------------------------------------------------------------------------!
+                     allocate (plantation(csite%npatches))
+                     plantation(:) = 0
+                     call hdf_getslab_i(plantation ,'PLANTATION '                             &
+                                       ,dsetrank,iparallel,.false.,foundvar)
+                     if (foundvar) then
+                        do ipa=1,csite%npatches
+                           select case(csite%dist_type(ipa))
+                           case (2)
+                              !---------------------------------------------------------------!
+                              !     Secondary forests are now divided in three categories.    !
+                              !---------------------------------------------------------------!
+                              if (plantation(ipa) == 0 .and. ianth_disturb == 0) then
+                                 csite%dist_type(ipa) = 5
+                              else if (plantation(ipa) == 0 .and. ianth_disturb == 1) then
+                                 csite%dist_type(ipa) = 6
+                              else
+                                 csite%dist_type(ipa) = 2
+                              end if
+                              !---------------------------------------------------------------!
+                           end select
+                           !------------------------------------------------------------------!
+                        end do
+                        !---------------------------------------------------------------------!
+                     end if
+                     deallocate(plantation)
+                     !------------------------------------------------------------------------!
+
                      
                      !----- Load 2D soil water
                      dsetrank     = 2_8
@@ -2973,9 +3085,11 @@ subroutine read_ed21_polyclone
                            cpatch%cb          (1:12,ico) = 1.0
                            cpatch%cb_lightmax (1:12,ico) = 1.0
                            cpatch%cb_moistmax (1:12,ico) = 1.0
+                           cpatch%cb_mlmax    (1:12,ico) = 1.0
                            cpatch%cb          (  13,ico) = 0.0
                            cpatch%cb_lightmax (  13,ico) = 0.0
                            cpatch%cb_moistmax (  13,ico) = 0.0
+                           cpatch%cb_mlmax    (  13,ico) = 0.0
                         end do
                         !------------------------------------------------------------------!
 

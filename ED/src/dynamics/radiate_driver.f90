@@ -141,10 +141,6 @@ subroutine radiate_driver(cgrid)
             nir_diff_norm = nir_diff_norm / sum_norm
             !------------------------------------------------------------------------------!
 
-
-
-
-
             !------------------------------------------------------------------------------!
             !    Loop over subgrid-scale patches.  These routines can be done as arrays.   !
             !------------------------------------------------------------------------------!
@@ -208,15 +204,32 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                                    , par_diff_norm        & ! intent(in)
                                    , nir_beam_norm        & ! intent(in)
                                    , nir_diff_norm        & ! intent(in)
-                                   , leaf_scatter_vis     & ! intent(in)
-                                   , wood_scatter_vis     & ! intent(in)
-                                   , leaf_scatter_nir     & ! intent(in)
-                                   , wood_scatter_nir     & ! intent(in)
+                                   , leaf_trans_vis       & ! intent(in)
+                                   , leaf_reflect_vis     & ! intent(in)
+                                   , leaf_scatter_vis     & ! intent(out)
+                                   , leaf_backscatter_vis & ! intent(out)
+                                   , wood_trans_vis       & ! intent(in)
+                                   , wood_reflect_vis     & ! intent(in)
+                                   , wood_scatter_vis     & ! intent(out)
+                                   , wood_backscatter_vis & ! intent(out)
+                                   , leaf_trans_nir       & ! intent(in)
+                                   , leaf_reflect_nir     & ! intent(in)
+                                   , leaf_scatter_nir     & ! intent(out)
+                                   , leaf_backscatter_nir & ! intent(out)
+                                   , wood_trans_nir       & ! intent(in)
+                                   , wood_reflect_nir     & ! intent(in)
+                                   , wood_scatter_nir     & ! intent(out)
+                                   , wood_backscatter_nir & ! intent(out)
                                    , leaf_emiss_tir       & ! intent(in)
                                    , wood_emiss_tir       & ! intent(in)
                                    , snow_albedo_vis      & ! intent(in)
                                    , snow_albedo_nir      & ! intent(in)
-                                   , snow_emiss_tir       ! ! intent(in)
+                                   , snow_emiss_tir       & ! intent(in)
+                                   , orient_factor        & ! intent(out)
+                                   , phi1                 & ! intent(out)
+                                   , phi2                 & ! intent(out)
+                                   , mu_bar               & ! intent(out)
+                                   , radscr
    use soil_coms            , only : soil                 & ! intent(in)
                                    , soilcol              ! ! intent(in)
    use consts_coms          , only : stefan               & ! intent(in)
@@ -227,6 +240,7 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
    use ed_misc_coms         , only : ibigleaf             & ! intent(in)
                                    , radfrq               & ! intent(in)
                                    , current_time         ! ! intent(in)
+   !$ use omp_lib
 
    implicit none
    !----- Arguments. ----------------------------------------------------------------------!
@@ -246,7 +260,6 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
    integer                         , intent(out) :: tuco
    !----- Local variables. ----------------------------------------------------------------!
    type(patchtype) , pointer                     :: cpatch
-   integer         , dimension(:)  , allocatable :: pft_array
    integer                                       :: il
    integer                                       :: ipa
    integer                                       :: ico
@@ -278,24 +291,6 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
    real                                          :: albedo_ground_nir
    real                                          :: downward_par_below_beam
    real                                          :: downward_nir_below_beam
-   real(kind=8)    , dimension(:)  , allocatable :: leaf_temp_array
-   real(kind=8)    , dimension(:)  , allocatable :: wood_temp_array
-   real(kind=8)    , dimension(:)  , allocatable :: lai_array
-   real(kind=8)    , dimension(:)  , allocatable :: wai_array
-   real(kind=8)    , dimension(:)  , allocatable :: CA_array
-   real(kind=8)    , dimension(:)  , allocatable :: htop_array
-   real(kind=8)    , dimension(:)  , allocatable :: hbot_array
-   real(kind=8)    , dimension(:)  , allocatable :: beam_level_array
-   real(kind=8)    , dimension(:)  , allocatable :: diff_level_array
-   real(kind=8)    , dimension(:)  , allocatable :: light_level_array
-   real(kind=8)    , dimension(:)  , allocatable :: light_beam_level_array
-   real(kind=8)    , dimension(:)  , allocatable :: light_diff_level_array
-   real            , dimension(:)  , allocatable :: par_v_beam_array
-   real            , dimension(:)  , allocatable :: rshort_v_beam_array
-   real            , dimension(:)  , allocatable :: par_v_diffuse_array
-   real            , dimension(:)  , allocatable :: rshort_v_diffuse_array
-   real            , dimension(:)  , allocatable :: lw_v_array
-   real            , dimension(:,:), allocatable :: radprof_array
    real                                          :: downward_par_below_diffuse
    real                                          :: upward_par_above_diffuse
    real                                          :: downward_nir_below_diffuse
@@ -321,101 +316,139 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
    real                                          :: bl_wai_each
    real                                          :: ground_par_check
    real                                          :: ground_nir_check
+   integer                                       :: ibuff
    !----- External function. --------------------------------------------------------------!
    real            , external                    :: sngloff
    !----- Local constants. ----------------------------------------------------------------!
    real(kind=8)    , parameter                   :: tiny_offset = 1.d-20
    !---------------------------------------------------------------------------------------!
 
-
-
    !---------------------------------------------------------------------------------------!
-   !    Allocate arrays based on the type of vegetation structure we are solving.          !
-   !---------------------------------------------------------------------------------------!
-   select case (ibigleaf)
-   case (0)
-      !---- Size and age structure.  Use the maximum number of cohorts. -------------------!
-      allocate (pft_array                 (          maxcohort))
-      allocate (leaf_temp_array           (          maxcohort))
-      allocate (wood_temp_array           (          maxcohort))
-      allocate (lai_array                 (          maxcohort))
-      allocate (wai_array                 (          maxcohort))
-      allocate (CA_array                  (          maxcohort))
-      allocate (htop_array                (          maxcohort))
-      allocate (hbot_array                (          maxcohort))
-      allocate (beam_level_array          (          maxcohort))
-      allocate (diff_level_array          (          maxcohort))
-      allocate (light_level_array         (          maxcohort))
-      allocate (light_beam_level_array    (          maxcohort))
-      allocate (light_diff_level_array    (          maxcohort))
-      allocate (par_v_beam_array          (          maxcohort))
-      allocate (rshort_v_beam_array       (          maxcohort))
-      allocate (par_v_diffuse_array       (          maxcohort))
-      allocate (rshort_v_diffuse_array    (          maxcohort))
-      allocate (lw_v_array                (          maxcohort))
-      allocate (radprof_array             (n_radprof,maxcohort))
-   case (1)
-      !---- Big leaf.  Use the maximum LAI. -----------------------------------------------!
-      max_cohort_count=0
-      do ipa = 1,csite%npatches
-         cpatch => csite%patch(ipa)
-         cohort_count = ceiling( (cpatch%lai(1) + cpatch%wai(1)) / tai_lyr_max )
-         max_cohort_count=max(max_cohort_count, cohort_count)
-      end do
-      
-      allocate (pft_array                 (          max_cohort_count))
-      allocate (leaf_temp_array           (          max_cohort_count))
-      allocate (wood_temp_array           (          max_cohort_count))
-      allocate (lai_array                 (          max_cohort_count))
-      allocate (wai_array                 (          max_cohort_count))
-      allocate (CA_array                  (          max_cohort_count))
-      allocate (htop_array                (          max_cohort_count))
-      allocate (hbot_array                (          max_cohort_count))
-      allocate (beam_level_array          (          max_cohort_count))
-      allocate (diff_level_array          (          max_cohort_count))
-      allocate (light_level_array         (          max_cohort_count))
-      allocate (light_beam_level_array    (          max_cohort_count))
-      allocate (light_diff_level_array    (          max_cohort_count))
-      allocate (par_v_beam_array          (          max_cohort_count))
-      allocate (rshort_v_beam_array       (          max_cohort_count))
-      allocate (par_v_diffuse_array       (          max_cohort_count))
-      allocate (rshort_v_diffuse_array    (          max_cohort_count))
-      allocate (lw_v_array                (          max_cohort_count))
-      allocate (radprof_array             (n_radprof,max_cohort_count))
-   end select
+   !     Scattering coefficients.  Contrary to ED-2.1, these values are based on the       !
+   ! description by by Sellers (1985) and the CLM technical manual, which includes the     !
+   ! leaf orientation factor in the backscattering.  This DOES NOT reduce to ED-2.1 case   !
+   ! when the leaf orientation is random.                                                  !
    !---------------------------------------------------------------------------------------!
 
-
+   !---------------------------------------------------------------------------------------!
+   !     Forward scattering.                                                               !
+   !---------------------------------------------------------------------------------------!
+   !----- Visible (PAR). ------------------------------------------------------------------!
+   leaf_scatter_vis(:) = leaf_reflect_vis(:) + leaf_trans_vis(:)
+   wood_scatter_vis(:) = wood_reflect_vis(:) + wood_trans_vis(:)
+   !----- Near infrared (NIR). ------------------------------------------------------------!
+   leaf_scatter_nir(:) = leaf_reflect_nir(:) + leaf_trans_nir(:)
+   wood_scatter_nir(:) = wood_reflect_nir(:) + wood_trans_nir(:)
+   !---------------------------------------------------------------------------------------!
+   
+   !---------------------------------------------------------------------------------------!
+   !      Back-scattering coefficients following CLM.                                      !
+   !---------------------------------------------------------------------------------------!
+   !----- Visible (PAR). ------------------------------------------------------------------!
+   leaf_backscatter_vis = ( leaf_scatter_vis                                               &
+                          + 2.5d-1 * ( leaf_reflect_vis - leaf_trans_vis   )               &
+                          * ( 1.d0 + orient_factor) ** 2 )                                 &
+                          / ( 2.d0 * leaf_scatter_vis )
+   wood_backscatter_vis = ( wood_scatter_vis                                               &
+                          + 2.5d-1                                                         &
+                          * ( wood_reflect_vis - wood_trans_vis   )                        &
+                          * ( 1.d0 + orient_factor) ** 2 )                                 &
+                          / ( 2.d0 * wood_scatter_vis )
+   !----- Near infrared (NIR). ------------------------------------------------------------!
+   leaf_backscatter_nir = ( leaf_scatter_nir                                               &
+                          + 2.5d-1                                                         &
+                          * ( leaf_reflect_nir - leaf_trans_nir   )                        &
+                          * ( 1.d0 + orient_factor) ** 2 )                                 &
+                          / ( 2.d0 * leaf_scatter_nir )
+   wood_backscatter_nir = ( wood_scatter_nir                                               &
+                          + 2.5d-1                                                         &
+                          * ( wood_reflect_nir - wood_trans_nir   )                        &
+                          * ( 1.d0 + orient_factor) ** 2 )                                 &
+                          / ( 2.d0 * wood_scatter_nir )
 
    !---------------------------------------------------------------------------------------!
-   !     Initialise the variables.                                                         !
+   !     Light extinction coefficients.   These are found following CLM technical manual,  !
+   ! and the values fall back to ED-2.0 defaults when orient_factor is zero.               !
    !---------------------------------------------------------------------------------------!
-   pft_array                 (  :) = -1
-   leaf_temp_array           (  :) = 0.d0
-   wood_temp_array           (  :) = 0.d0
-   lai_array                 (  :) = 0.d0
-   wai_array                 (  :) = 0.d0
-   CA_array                  (  :) = 0.d0
-   htop_array                (  :) = 0.d0
-   hbot_array                (  :) = 0.d0
-   beam_level_array          (  :) = 0.d0
-   diff_level_array          (  :) = 0.d0
-   light_level_array         (  :) = 0.d0
-   light_beam_level_array    (  :) = 0.d0
-   light_diff_level_array    (  :) = 0.d0
-   par_v_beam_array          (  :) = 0.
-   rshort_v_beam_array       (  :) = 0.
-   par_v_diffuse_array       (  :) = 0.
-   rshort_v_diffuse_array    (  :) = 0.
-   lw_v_array                (  :) = 0.
-   radprof_array             (:,:) = 0.
+   phi1 = 5.d-1 - orient_factor * ( 6.33d-1 + 3.3d-1 * orient_factor )
+   phi2 = 8.77d-1 * (1.d0 - 2.d0 * phi1)
+
+   !---------------------------------------------------------------------------------------!
+   !     Find the average inverse diffuse optical depth per unit leaf and stem area.       !
+   ! We follow CLM technical manual, equation 3.4 only when the orientation factor is      !
+   ! non-zero.   Otherwise, we make it 1.d0, which is the limit of that equation when      !
+   ! phi2 approaches zero.                                                                 !
+   !---------------------------------------------------------------------------------------!
+   do ipft = 1, n_pft
+      if (orient_factor(ipft) == 0.d0) then
+         mu_bar(ipft) = 1.d0
+      else
+         mu_bar(ipft) = ( 1.d0                                                             &
+                        - phi1(ipft) * log(1.d0 + phi2(ipft) / phi1(ipft)) / phi2(ipft) )  &
+                        / phi2(ipft)
+      end if
+   end do
    !---------------------------------------------------------------------------------------!
 
 
+   !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(         &
+   !$OMP ibuff,cpatch,cohort_count,tuco,tuco_leaf,    &
+   !$OMP ico,bl_lai_each,bl_wai_each,nsoil,colour,    &
+   !$OMP albedo_soil_par,albedo_soil_nir,             &
+   !$OMP albedo_damp_par,albedo_damp_nir,fcpct,       &
+   !$OMP rad_sfcw_par,rad_sfcw_nir,albedo_ground_par, &
+   !$OMP albedo_ground_nir,abs_sfcw_par,abs_sfcw_nir, &
+   !$OMP emissivity,T_surface,ksn,albedo_sfcw_par,    &
+   !$OMP albedo_sfcw_nir,k,sfcw_odepth,fractrans_par, &
+   !$OMP fractrans_nir,downward_lw_below,             &
+   !$OMP upward_lw_below,upward_lw_above,             &
+   !$OMP surface_netabs_longwave,                     &
+   !$OMP downward_par_below_beam,                     &
+   !$OMP downward_par_below_diffuse,                  &
+   !$OMP upward_par_above_diffuse,                    &
+   !$OMP downward_nir_below_beam,                     &
+   !$OMP downward_nir_below_diffuse,                  &
+   !$OMP upward_nir_above_diffuse,                    &
+   !$OMP ipft,wleaf_vis,wleaf_nir,wleaf_tir,          &
+   !$OMP wwood_vis,wwood_nir,wwood_tir,               &
+   !$OMP upward_rshort_above_diffuse,                 &
+   !$OMP downward_rshort_below_beam,                  &
+   !$OMP downward_rshort_below_diffuse,               &
+   !$OMP il,nir_v_beam,nir_v_diffuse,                 &
+   !$OMP abs_ground_par,abs_ground_nir )                
+
+   
    !----- Loop over the patches -----------------------------------------------------------!
    do ipa = 1,csite%npatches
       cpatch => csite%patch(ipa)
       
+      ibuff = 1
+      !$ ibuff = OMP_get_thread_num()+1
+
+      !------------------------------------------------------------------------------------!
+      !     Initialise the variables.                                                      !
+      !------------------------------------------------------------------------------------!
+      radscr(ibuff)%pft_array(:)                 = -1
+      radscr(ibuff)%leaf_temp_array(:)           = 0.d0
+      radscr(ibuff)%wood_temp_array(:)           = 0.d0
+      radscr(ibuff)%lai_array(:)                 = 0.d0
+      radscr(ibuff)%wai_array(:)                 = 0.d0
+      radscr(ibuff)%CA_array(:)                  = 0.d0
+      radscr(ibuff)%htop_array(:)                = 0.d0
+      radscr(ibuff)%hbot_array(:)                = 0.d0
+      radscr(ibuff)%par_level_beam(:)            = 0.d0
+      radscr(ibuff)%par_level_diffd(:)           = 0.d0
+      radscr(ibuff)%par_level_diffu(:)           = 0.d0
+      radscr(ibuff)%light_level_array(:)         = 0.d0
+      radscr(ibuff)%light_beam_level_array(:)    = 0.d0
+      radscr(ibuff)%light_diff_level_array(:)    = 0.d0
+      radscr(ibuff)%par_v_beam_array(:)          = 0.
+      radscr(ibuff)%rshort_v_beam_array(:)       = 0.
+      radscr(ibuff)%par_v_diffuse_array(:)       = 0.
+      radscr(ibuff)%rshort_v_diffuse_array(:)    = 0.
+      radscr(ibuff)%lw_v_array(:)                = 0.
+      radscr(ibuff)%radprof_array(:,:)           = 0.
+      !------------------------------------------------------------------------------------!
 
       !------------------------------------------------------------------------------------!
       !     Cohort_count is the number of cohorts that affect the radiation balance (i.e.  !
@@ -451,16 +484,16 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
          ! radiation schemes.                                                              !
          !---------------------------------------------------------------------------------!
          do ico = cpatch%ncohorts,1,-1
-            
+
             !----- Initialize values. -----------------------------------------------------!
             cpatch%par_l             (ico)    = 0.0
             cpatch%par_l_beam        (ico)    = 0.0
             cpatch%par_l_diffuse     (ico)    = 0.0
-            
+
             cpatch%rshort_l          (ico)    = 0.0
             cpatch%rshort_l_beam     (ico)    = 0.0
             cpatch%rshort_l_diffuse  (ico)    = 0.0
-            
+
             cpatch%rlong_l           (ico)    = 0.0
 
             cpatch%rshort_w          (ico)    = 0.0
@@ -481,9 +514,7 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                !---------------------------------------------------------------------------!
 
                cohort_count                          = cohort_count + 1
-               pft_array              (cohort_count) = cpatch%pft(ico)
-
-
+               radscr(ibuff)%pft_array(cohort_count) = cpatch%pft(ico)
 
                !---------------------------------------------------------------------------!
                !     Here we only tell the true LAI if the leaf is resolvable, and the     !
@@ -493,31 +524,34 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                ! arrays.                                                                   !
                !---------------------------------------------------------------------------!
                if (cpatch%leaf_resolvable(ico)) then
-                  tuco_leaf                 = cohort_count
-                  lai_array  (cohort_count) = dble(cpatch%lai(ico))
+                  tuco_leaf                             = cohort_count
+                  radscr(ibuff)%lai_array(cohort_count) = dble(cpatch%lai(ico))
                else
-                  lai_array  (cohort_count) = 0.d0
+                  radscr(ibuff)%lai_array(cohort_count) = 0.d0
                end if
                if (cpatch%wood_resolvable(ico)) then
-                  wai_array  (cohort_count) = dble(cpatch%wai(ico))
+                  radscr(ibuff)%wai_array(cohort_count) = dble(cpatch%wai(ico))
                else
-                  wai_array  (cohort_count) = 0.d0
+                  radscr(ibuff)%wai_array(cohort_count) = 0.d0
                end if
                !---------------------------------------------------------------------------!
 
-               leaf_temp_array        (  cohort_count) = dble(cpatch%leaf_temp(ico))
-               wood_temp_array        (  cohort_count) = dble(cpatch%wood_temp(ico))
-               rshort_v_beam_array    (  cohort_count) = 0.0
-               par_v_beam_array       (  cohort_count) = 0.0
-               rshort_v_diffuse_array (  cohort_count) = 0.0
-               par_v_diffuse_array    (  cohort_count) = 0.0
-               lw_v_array             (  cohort_count) = 0.0
-               radprof_array          (:,cohort_count) = 0.0
-               beam_level_array       (  cohort_count) = 0.d0
-               diff_level_array       (  cohort_count) = 0.d0
-               light_level_array      (  cohort_count) = 0.d0
-               light_beam_level_array (  cohort_count) = 0.d0
-               light_diff_level_array (  cohort_count) = 0.d0
+               ! TEST REMOVING THESE ZERO CALLS (REDUNDANT)
+
+               radscr(ibuff)%leaf_temp_array(cohort_count) = dble(cpatch%leaf_temp(ico))
+               radscr(ibuff)%wood_temp_array(cohort_count) = dble(cpatch%wood_temp(ico))
+               radscr(ibuff)%rshort_v_beam_array   (  cohort_count) = 0.0
+               radscr(ibuff)%par_v_beam_array      (  cohort_count) = 0.0
+               radscr(ibuff)%rshort_v_diffuse_array(  cohort_count) = 0.0
+               radscr(ibuff)%par_v_diffuse_array   (  cohort_count) = 0.0
+               radscr(ibuff)%lw_v_array            (  cohort_count) = 0.0
+               radscr(ibuff)%radprof_array         (:,cohort_count) = 0.0
+               radscr(ibuff)%par_level_beam        (  cohort_count) = 0.d0
+               radscr(ibuff)%par_level_diffd       (  cohort_count) = 0.d0
+               radscr(ibuff)%par_level_diffu       (  cohort_count) = 0.d0
+               radscr(ibuff)%light_level_array     (  cohort_count) = 0.d0
+               radscr(ibuff)%light_beam_level_array(  cohort_count) = 0.d0
+               radscr(ibuff)%light_diff_level_array(  cohort_count) = 0.d0
                !---------------------------------------------------------------------------!
 
                !---------------------------------------------------------------------------!
@@ -526,9 +560,9 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                !---------------------------------------------------------------------------!
                select case (crown_mod)
                case (0)
-                  CA_array           (cohort_count) = 1.d0
+                  radscr(ibuff)%CA_array(cohort_count) = 1.d0
                case (1)
-                  CA_array           (cohort_count) = dble(cpatch%crown_area(ico))
+                  radscr(ibuff)%CA_array(cohort_count) = dble(cpatch%crown_area(ico))
                end select
                !---------------------------------------------------------------------------!
             end if
@@ -546,21 +580,15 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
             cpatch%par_l(1)                 = 0.0
             cpatch%par_l_beam(1)            = 0.0
             cpatch%par_l_diffuse(1)         = 0.0
-            
             cpatch%rshort_l(1)              = 0.0
             cpatch%rshort_l_beam(1)         = 0.0
             cpatch%rshort_l_diffuse(1)      = 0.0
-            
             cpatch%rlong_l(1)               = 0.0
-
             cpatch%rshort_w(1)              = 0.0
             cpatch%rshort_w_beam(1)         = 0.0
             cpatch%rshort_w_diffuse(1)      = 0.0
-
             cpatch%rlong_w(1)               = 0.0
-
             cpatch%rad_profile     (:,1)    = 0.0
-
             cpatch%light_level     (1)      = 0.0
             cpatch%light_level_beam(1)      = 0.0
             cpatch%light_level_diff(1)      = 0.0
@@ -571,14 +599,12 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
            if (cpatch%leaf_resolvable(1) .or. cpatch%wood_resolvable(1)) then
                tuco = 1 !---- Dummy variable. ---------------------------------------------!
 
-
-
                !---------------------------------------------------------------------------!
                !     Here we only tell the true LAI if the leaf is resolvable, and the     !
-               ! true   !
-               ! WAI if the wood is resolvable.  Also, for photosynthesis, we must keep track !
-               ! of the tallest cohort that has leaves (we track the array counters because   !
-               ! we will extract the information directly from the arrays.                    !
+               ! true WAI if the wood is resolvable.  Also, for photosynthesis, we must    !
+               ! keep track of the tallest cohort that has leaves (we track the array      !
+               ! counters because we will extract the information directly from the        !
+               ! arrays.                                                                   !
                !---------------------------------------------------------------------------!
                if (cpatch%leaf_resolvable(1) .and. cpatch%wood_resolvable(1)) then
                   cohort_count = ceiling( (cpatch%lai(1) + cpatch%wai(1)) / tai_lyr_max )
@@ -599,30 +625,30 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
 
 
 
-
                !---------------------------------------------------------------------------!
                !     Loop over all layers, and assign equal amounts of LAI and WAI such    !
                ! that they add back to the total amount.  We impose crown model off for    !
                ! big leaf, so CA_array must be always set to 1.                            !
                !---------------------------------------------------------------------------!
                do ico = 1, cohort_count
-                  pft_array                (ico) = cpatch%pft(1)
-                  lai_array                (ico) = dble(bl_lai_each)
-                  wai_array                (ico) = dble(bl_wai_each)
-                  CA_array                 (ico) = 1.d0
-                  leaf_temp_array          (ico) = dble(cpatch%leaf_temp(1))
-                  wood_temp_array          (ico) = dble(cpatch%wood_temp(1))
-                  rshort_v_beam_array      (ico) = 0.0
-                  par_v_beam_array         (ico) = 0.0
-                  rshort_v_diffuse_array   (ico) = 0.0
-                  lw_v_array             (  ico) = 0.0
-                  radprof_array          (:,ico) = 0.0
-                  par_v_diffuse_array      (ico) = 0.0
-                  beam_level_array         (ico) = 0.d0
-                  diff_level_array         (ico) = 0.d0
-                  light_level_array        (ico) = 0.d0
-                  light_beam_level_array   (ico) = 0.d0
-                  light_diff_level_array   (ico) = 0.d0
+                  radscr(ibuff)%pft_array                (ico) = cpatch%pft(1)
+                  radscr(ibuff)%lai_array                (ico) = dble(bl_lai_each)
+                  radscr(ibuff)%wai_array                (ico) = dble(bl_wai_each)
+                  radscr(ibuff)%CA_array                 (ico) = 1.d0
+                  radscr(ibuff)%leaf_temp_array          (ico) = dble(cpatch%leaf_temp(1))
+                  radscr(ibuff)%wood_temp_array          (ico) = dble(cpatch%wood_temp(1))
+                  radscr(ibuff)%rshort_v_beam_array      (ico) = 0.0
+                  radscr(ibuff)%par_v_beam_array         (ico) = 0.0
+                  radscr(ibuff)%rshort_v_diffuse_array   (ico) = 0.0
+                  radscr(ibuff)%lw_v_array             (  ico) = 0.0
+                  radscr(ibuff)%radprof_array          (:,ico) = 0.0
+                  radscr(ibuff)%par_v_diffuse_array      (ico) = 0.0
+                  radscr(ibuff)%par_level_beam           (ico) = 0.d0
+                  radscr(ibuff)%par_level_diffu          (ico) = 0.d0
+                  radscr(ibuff)%par_level_diffd          (ico) = 0.d0
+                  radscr(ibuff)%light_level_array        (ico) = 0.d0
+                  radscr(ibuff)%light_beam_level_array   (ico) = 0.d0
+                  radscr(ibuff)%light_diff_level_array   (ico) = 0.d0
                end do
                !---------------------------------------------------------------------------!
             end if
@@ -633,16 +659,12 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
       !------------------------------------------------------------------------------------!
 
 
-
       !------------------------------------------------------------------------------------!
       csite%rshort_s_diffuse(:,ipa) = 0.0
       csite%rshort_s_beam   (:,ipa) = 0.0
       csite%par_s_diffuse   (:,ipa) = 0.0
       csite%par_s_beam      (:,ipa) = 0.0
       !------------------------------------------------------------------------------------!
-
-
-
 
       !------------------------------------------------------------------------------------!
       !     Find the ground albedo as a function of soil water relative moisture of the    !
@@ -703,8 +725,7 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
       !------------------------------------------------------------------------------------!
 
 
-
-
+      
 
       !------------------------------------------------------------------------------------!
       !     Decide what is our surface temperature.  When the soil is exposed, then that   !
@@ -737,12 +758,12 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
          !      Community Land Model (CLM). NCAR Technical Note NCAR/TN-478+STR.           !
          !                                                                                 !
          !---------------------------------------------------------------------------------!
-         albedo_sfcw_par = albedo_damp_par + csite%sfcwater_fracliq(ksn,ipa)               &
-                                           * ( snow_albedo_vis - albedo_damp_par )
-         albedo_sfcw_nir = albedo_damp_nir + csite%sfcwater_fracliq(ksn,ipa)               &
-                                           * ( snow_albedo_nir - albedo_damp_nir )
-         !---------------------------------------------------------------------------------!
+         albedo_sfcw_par = snow_albedo_vis + csite%sfcwater_fracliq(ksn,ipa)               &
+                                           * ( albedo_damp_par - snow_albedo_vis )
+         albedo_sfcw_nir = snow_albedo_nir + csite%sfcwater_fracliq(ksn,ipa)               &
+                                           * ( albedo_damp_nir - snow_albedo_nir )
 
+         !---------------------------------------------------------------------------------!
 
 
          !----- Fraction shortwave absorbed into sfcwater + soil. -------------------------!
@@ -785,6 +806,7 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
          end do
          !---------------------------------------------------------------------------------!
 
+
          !----- Long wave parameter if sfcwater exists. -----------------------------------!
          emissivity = snow_emiss_tir            *        csite%snowfac(ipa)                &
                     + soilcol(colour)%emiss_tir * ( 1. - csite%snowfac(ipa) )
@@ -799,7 +821,6 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
 
 
 
-
       !------------------------------------------------------------------------------------!
       !     This is the fraction of below-canopy radiation that is absorbed by the ground. !
       !------------------------------------------------------------------------------------!
@@ -809,15 +830,10 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                      * (1.0 - csite%snowfac(ipa) + csite%snowfac(ipa) * rad_sfcw_nir )
       !------------------------------------------------------------------------------------!
 
-
-
-
       !----- Subtract off ground absorption to obtain the soil+sfcwater albedo. -----------!
       albedo_ground_par = albedo_ground_par - abs_ground_par
       albedo_ground_nir = albedo_ground_nir - abs_ground_nir
       !------------------------------------------------------------------------------------!
-
-
 
       !------------------------------------------------------------------------------------!
       !     Decide whether to call the radiation or not.  If there is no cohort, we can    !
@@ -834,14 +850,18 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
             !------------------------------------------------------------------------------!
             !    Original two-stream model.                                                !
             !------------------------------------------------------------------------------!
-            call old_lw_two_stream(emissivity,T_surface,rlong,cohort_count                 &
-                                  ,pft_array(1:cohort_count),LAI_array(1:cohort_count)     &
-                                  ,WAI_array(1:cohort_count),CA_array(1:cohort_count)      &
-                                  ,leaf_temp_array(1:cohort_count)                         &
-                                  ,wood_temp_array(1:cohort_count)                         &
-                                  ,radprof_array(1:n_radprof,1:cohort_count)               &
-                                  ,lw_v_array(1:cohort_count)                              &
-                                  ,downward_lw_below,upward_lw_below,upward_lw_above)
+            call old_lw_two_stream(emissivity,T_surface,rlong,cohort_count,                &
+                                   radscr(ibuff)%pft_array(1:cohort_count),                &
+                                   radscr(ibuff)%LAI_array(1:cohort_count),                &
+                                   radscr(ibuff)%WAI_array(1:cohort_count),                & 
+                                   radscr(ibuff)%CA_array(1:cohort_count),                 &
+                                   radscr(ibuff)%leaf_temp_array(1:cohort_count),          &
+                                   radscr(ibuff)%wood_temp_array(1:cohort_count),          &
+                                   radscr(ibuff)%radprof_array(1:n_radprof,1:cohort_count),&
+                                   radscr(ibuff)%lw_v_array(1:cohort_count),               &
+                                   downward_lw_below,                                      &
+                                   upward_lw_below,                                        &
+                                   upward_lw_above)
             !------------------------------------------------------------------------------!
 
          case (1)
@@ -853,32 +873,41 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
             ! the solution, so the code called after this step can be used the same way    !
             ! for both radiations.                                                         !
             !------------------------------------------------------------------------------!
-            call lw_multiple_scatter(emissivity,T_surface,rlong,cohort_count               &
-                                    ,pft_array(1:cohort_count),LAI_array(1:cohort_count)   &
-                                    ,WAI_array(1:cohort_count),CA_array(1:cohort_count)    &
-                                    ,leaf_temp_array(1:cohort_count)                       &
-                                    ,wood_temp_array(1:cohort_count)                       &
-                                    ,radprof_array(1:n_radprof,1:cohort_count)             &
-                                    ,lw_v_array(1:cohort_count)                            &
-                                    ,downward_lw_below,upward_lw_below,upward_lw_above)
+            call lw_multiple_scatter(emissivity,T_surface,rlong,cohort_count,              &
+                                   radscr(ibuff)%pft_array(1:cohort_count),                &
+                                   radscr(ibuff)%LAI_array(1:cohort_count),                &
+                                   radscr(ibuff)%WAI_array(1:cohort_count),                & 
+                                   radscr(ibuff)%CA_array(1:cohort_count),                 &
+                                   radscr(ibuff)%leaf_temp_array(1:cohort_count),          &
+                                   radscr(ibuff)%wood_temp_array(1:cohort_count),          &
+                                   radscr(ibuff)%radprof_array(1:n_radprof,1:cohort_count),&
+                                   radscr(ibuff)%lw_v_array(1:cohort_count),               &
+                                   downward_lw_below,                                      &
+                                   upward_lw_below,                                        &
+                                   upward_lw_above)
             !------------------------------------------------------------------------------!
+
+
+
+
 
          case (2) 
             !------------------------------------------------------------------------------!
             !    Updated two-stream model.                                                 !
             !------------------------------------------------------------------------------!
-            call lw_two_stream(emissivity,T_surface,rlong,cohort_count                     &
-                              ,pft_array(1:cohort_count),LAI_array(1:cohort_count)         &
-                              ,WAI_array(1:cohort_count),CA_array(1:cohort_count)          &
-                              ,leaf_temp_array(1:cohort_count)                             &
-                              ,wood_temp_array(1:cohort_count)                             &
-                              ,radprof_array(1:n_radprof,1:cohort_count)                   &
-                              ,lw_v_array(1:cohort_count)                                  &
-                              ,downward_lw_below,upward_lw_below,upward_lw_above)
+            call lw_two_stream(emissivity,T_surface,rlong,cohort_count,                    &
+                                   radscr(ibuff)%pft_array(1:cohort_count),                &
+                                   radscr(ibuff)%LAI_array(1:cohort_count),                &
+                                   radscr(ibuff)%WAI_array(1:cohort_count),                & 
+                                   radscr(ibuff)%CA_array(1:cohort_count),                 &
+                                   radscr(ibuff)%leaf_temp_array(1:cohort_count),          &
+                                   radscr(ibuff)%wood_temp_array(1:cohort_count),          &
+                                   radscr(ibuff)%radprof_array(1:n_radprof,1:cohort_count),&
+                                   radscr(ibuff)%lw_v_array(1:cohort_count),               &
+                                   downward_lw_below,upward_lw_below,upward_lw_above)
             !------------------------------------------------------------------------------!
          end select
          !---------------------------------------------------------------------------------!
-
 
 
          !----- Upwelling long wave radiation at the top of the canopy. -------------------!
@@ -886,13 +915,9 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
          csite%rlong_albedo(ipa) = upward_lw_above / rlong
          !---------------------------------------------------------------------------------!
 
-
-
          !----- Net long wave absorption by either soil or sfcwater. ----------------------!
          surface_netabs_longwave = downward_lw_below - upward_lw_below
          !---------------------------------------------------------------------------------!
-
-
 
          !---------------------------------------------------------------------------------!
          !     Compute short wave only if it is daytime or at least twilight.              !
@@ -910,80 +935,94 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                !---------------------------------------------------------------------------!
                call old_sw_two_stream(albedo_ground_par,albedo_ground_nir,cosaoi           &
                                      ,cohort_count                                         &
-                                     ,pft_array(1:cohort_count)                            &
-                                     ,LAI_array(1:cohort_count)                            &
-                                     ,WAI_array(1:cohort_count)                            &
-                                     ,CA_array(1:cohort_count)                             &
-                                     ,radprof_array(1:n_radprof,1:cohort_count)            &
-                                     ,par_v_beam_array(1:cohort_count)                     &
-                                     ,par_v_diffuse_array(1:cohort_count)                  &
-                                     ,rshort_v_beam_array(1:cohort_count)                  &
-                                     ,rshort_v_diffuse_array(1:cohort_count)               &
+                                     ,radscr(ibuff)%pft_array(1:cohort_count)              &
+                                     ,radscr(ibuff)%LAI_array(1:cohort_count)                 &
+                                     ,radscr(ibuff)%WAI_array(1:cohort_count)                 &
+                                    ,radscr(ibuff)%CA_array(1:cohort_count)                  &
+                                     ,radscr(ibuff)%radprof_array(1:n_radprof,1:cohort_count) &
+                                     ,radscr(ibuff)%par_v_beam_array(1:cohort_count)          &
+                                     ,radscr(ibuff)%par_v_diffuse_array(1:cohort_count)       &
+                                     ,radscr(ibuff)%rshort_v_beam_array(1:cohort_count)       &
+                                     ,radscr(ibuff)%rshort_v_diffuse_array(1:cohort_count)    &
                                      ,downward_par_below_beam                              &
                                      ,downward_par_below_diffuse                           &
                                      ,upward_par_above_diffuse                             &
                                      ,downward_nir_below_beam                              &
                                      ,downward_nir_below_diffuse                           &
                                      ,upward_nir_above_diffuse                             &
-                                     ,beam_level_array,diff_level_array                    &
-                                     ,light_level_array,light_beam_level_array             &
-                                     ,light_diff_level_array)
+                                     ,radscr(ibuff)%par_level_beam(1:cohort_count)         &
+                                     ,radscr(ibuff)%par_level_diffd(1:cohort_count)        &
+                                     ,radscr(ibuff)%par_level_diffu(1:cohort_count)        &
+                                     ,radscr(ibuff)%light_level_array(1:cohort_count)      &
+                                     ,radscr(ibuff)%light_beam_level_array(1:cohort_count) &
+                                     ,radscr(ibuff)%light_diff_level_array(1:cohort_count))
+
                !---------------------------------------------------------------------------!
 
             case (1)
                !---------------------------------------------------------------------------!
                !      Multiple-scatter model.                                              !
                !---------------------------------------------------------------------------!
+
                call sw_multiple_scatter(albedo_ground_par,albedo_ground_nir,cosaoi         &
-                                       ,cohort_count                                       &
-                                       ,pft_array(1:cohort_count)                          &
-                                       ,LAI_array(1:cohort_count)                          &
-                                       ,WAI_array(1:cohort_count)                          &
-                                       ,CA_array(1:cohort_count)                           &
-                                       ,radprof_array(1:n_radprof,1:cohort_count)          &
-                                       ,par_v_beam_array(1:cohort_count)                   &
-                                       ,par_v_diffuse_array(1:cohort_count)                &
-                                       ,rshort_v_beam_array(1:cohort_count)                &
-                                       ,rshort_v_diffuse_array(1:cohort_count)             &
-                                       ,downward_par_below_beam                            &
-                                       ,downward_par_below_diffuse                         &
-                                       ,upward_par_above_diffuse                           &
-                                       ,downward_nir_below_beam                            &
-                                       ,downward_nir_below_diffuse                         &
-                                       ,upward_nir_above_diffuse                           &
-                                       ,beam_level_array,diff_level_array                  &
-                                       ,light_level_array,light_beam_level_array           &
-                                       ,light_diff_level_array)
+                                     ,cohort_count                                         &
+                                     ,radscr(ibuff)%pft_array(1:cohort_count)              &
+                                     ,radscr(ibuff)%LAI_array(1:cohort_count)                 &
+                                     ,radscr(ibuff)%WAI_array(1:cohort_count)                 &
+                                     ,radscr(ibuff)%CA_array(1:cohort_count)                  &
+                                     ,radscr(ibuff)%radprof_array(1:n_radprof,1:cohort_count) &
+                                     ,radscr(ibuff)%par_v_beam_array(1:cohort_count)          &
+                                     ,radscr(ibuff)%par_v_diffuse_array(1:cohort_count)       &
+                                     ,radscr(ibuff)%rshort_v_beam_array(1:cohort_count)       &
+                                     ,radscr(ibuff)%rshort_v_diffuse_array(1:cohort_count)    &
+                                     ,downward_par_below_beam                              &
+                                     ,downward_par_below_diffuse                           &
+                                     ,upward_par_above_diffuse                             &
+                                     ,downward_nir_below_beam                              &
+                                     ,downward_nir_below_diffuse                           &
+                                     ,upward_nir_above_diffuse                             &
+                                     ,radscr(ibuff)%par_level_beam(1:cohort_count)         &
+                                     ,radscr(ibuff)%par_level_diffd(1:cohort_count)        &
+                                     ,radscr(ibuff)%par_level_diffu(1:cohort_count)        &
+                                     ,radscr(ibuff)%light_level_array(1:cohort_count)      &
+                                     ,radscr(ibuff)%light_beam_level_array(1:cohort_count) &
+                                     ,radscr(ibuff)%light_diff_level_array(1:cohort_count))
+
                !---------------------------------------------------------------------------!
             case (2)
                !---------------------------------------------------------------------------!
                !    Updated two-stream model.                                              !
                !---------------------------------------------------------------------------!
-               call sw_two_stream(albedo_ground_par,albedo_ground_nir,cosaoi               &
-                                 ,cohort_count                                             &
-                                 ,pft_array(1:cohort_count)                                &
-                                 ,LAI_array(1:cohort_count)                                &
-                                 ,WAI_array(1:cohort_count)                                &
-                                 ,CA_array(1:cohort_count)                                 &
-                                 ,radprof_array(1:n_radprof,1:cohort_count)                &
-                                 ,par_v_beam_array(1:cohort_count)                         &
-                                 ,par_v_diffuse_array(1:cohort_count)                      &
-                                 ,rshort_v_beam_array(1:cohort_count)                      &
-                                 ,rshort_v_diffuse_array(1:cohort_count)                   &
-                                 ,downward_par_below_beam                                  &
-                                 ,downward_par_below_diffuse                               &
-                                 ,upward_par_above_diffuse                                 &
-                                 ,downward_nir_below_beam                                  &
-                                 ,downward_nir_below_diffuse                               &
-                                 ,upward_nir_above_diffuse                                 &
-                                 ,beam_level_array,diff_level_array                        &
-                                 ,light_level_array,light_beam_level_array                 &
-                                 ,light_diff_level_array)
+
+              call sw_two_stream(albedo_ground_par,albedo_ground_nir,cosaoi                &
+                                     ,cohort_count                                         &
+                                     ,radscr(ibuff)%pft_array(1:cohort_count)              &
+                                     ,radscr(ibuff)%LAI_array(1:cohort_count)                 &
+                                     ,radscr(ibuff)%WAI_array(1:cohort_count)                 &
+                                     ,radscr(ibuff)%CA_array(1:cohort_count)                  &
+                                     ,radscr(ibuff)%radprof_array(1:n_radprof,1:cohort_count) &
+                                     ,radscr(ibuff)%par_v_beam_array(1:cohort_count)          &
+                                     ,radscr(ibuff)%par_v_diffuse_array(1:cohort_count)       &
+                                     ,radscr(ibuff)%rshort_v_beam_array(1:cohort_count)       &
+                                     ,radscr(ibuff)%rshort_v_diffuse_array(1:cohort_count)    &
+                                     ,downward_par_below_beam                              &
+                                     ,downward_par_below_diffuse                           &
+                                     ,upward_par_above_diffuse                             &
+                                     ,downward_nir_below_beam                              &
+                                     ,downward_nir_below_diffuse                           &
+                                     ,upward_nir_above_diffuse                             &
+                                     ,radscr(ibuff)%par_level_beam(1:cohort_count)         &
+                                     ,radscr(ibuff)%par_level_diffd(1:cohort_count)        &
+                                     ,radscr(ibuff)%par_level_diffu(1:cohort_count)        &
+                                     ,radscr(ibuff)%light_level_array(1:cohort_count)      &
+                                     ,radscr(ibuff)%light_beam_level_array(1:cohort_count) &
+                                     ,radscr(ibuff)%light_diff_level_array(1:cohort_count))
+
+              ! THE LAST 5 ARRAYS SHOULD BE 1:cohort_count ?
+
                !---------------------------------------------------------------------------!
             end select
             !------------------------------------------------------------------------------!
-
-
 
             !------------------------------------------------------------------------------!
             !    Since there is no horizontal competition, assuming that the maximum       !
@@ -991,20 +1030,22 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
             ! enough.                                                                      !
             !------------------------------------------------------------------------------!
             if (tuco_leaf /= 0) then
-               ipft      = pft_array(tuco_leaf)
+               ipft      = radscr(ibuff)%pft_array(tuco_leaf)
                wleaf_vis = sngloff( clumping_factor(ipft)                                  &
                                   * (1.d0 - leaf_scatter_vis(ipft))                        &
-                                  * LAI_array(tuco_leaf)                                   &
+                                  * radscr(ibuff)%LAI_array(tuco_leaf)                     &
                                   / ( clumping_factor(ipft)                                &
                                     * (1.d0 - leaf_scatter_vis(ipft))                      &
-                                    * LAI_array(tuco_leaf)                                 &
+                                    * radscr(ibuff)%LAI_array(tuco_leaf)                   &
                                     + (1.d0 - wood_scatter_vis(ipft))                      &
-                                    * WAI_array(tuco_leaf) )                               &
+                                    * radscr(ibuff)%WAI_array(tuco_leaf) )                 &
                                   , tiny_offset)
-               csite%par_l_beam_max(ipa)    = par_v_beam_array(tuco_leaf)    * wleaf_vis   &
-                                            / LAI_array(tuco_leaf)
-               csite%par_l_diffuse_max(ipa) = par_v_diffuse_array(tuco_leaf) * wleaf_vis   &
-                                            / LAI_array(tuco_leaf)
+               csite%par_l_beam_max(ipa)    = radscr(ibuff)%par_v_beam_array(tuco_leaf)    &
+                                            * wleaf_vis   &
+                                            / radscr(ibuff)%LAI_array(tuco_leaf)
+               csite%par_l_diffuse_max(ipa) = radscr(ibuff)%par_v_diffuse_array(tuco_leaf) &
+                                            * wleaf_vis   &
+                                            / radscr(ibuff)%LAI_array(tuco_leaf)
             end if
             !------------------------------------------------------------------------------!
 
@@ -1015,8 +1056,6 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                                         + upward_nir_above_diffuse
             !------------------------------------------------------------------------------!
 
-
-
             !----- Below-canopy downwelling radiation. ------------------------------------!
             downward_rshort_below_beam    = downward_par_below_beam                        &
                                           + downward_nir_below_beam
@@ -1024,16 +1063,17 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                                           + downward_nir_below_diffuse
             !------------------------------------------------------------------------------!
 
-
-
             !----- Soil+sfcwater+veg albedo (PAR, NIR, and Total Shortwave). --------------!
+            ! (par_beam_norm,par_diff_norm,nir_beam_norm and nir_diff_norm are site level  !
             csite%albedo_par (ipa) = upward_par_above_diffuse                              &
                                    / sngloff( par_beam_norm + par_diff_norm, tiny_offset )
             csite%albedo_nir (ipa) = upward_nir_above_diffuse                              &
                                    / sngloff( nir_beam_norm + nir_diff_norm, tiny_offset )
             csite%albedo     (ipa) = upward_rshort_above_diffuse
             !------------------------------------------------------------------------------!
+
          else
+
 
             !----- The code expects values for these, even when it is not daytime. --------!
             downward_par_below_beam         = par_beam_norm
@@ -1055,9 +1095,6 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
          end if
          !---------------------------------------------------------------------------------!
 
-
-
-
          !---------------------------------------------------------------------------------!
          !     Absorption rates of PAR, rshort, and rlong of the vegetation.  Here we      !
          ! check again whether we are solving big leaf or size- and age-structure.         !
@@ -1072,7 +1109,7 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
             do ico = cpatch%ncohorts,1,-1
                if (cpatch%leaf_resolvable(ico) .or. cpatch%wood_resolvable(ico)) then
                   il   = il + 1
-                  ipft = pft_array(il)
+                  ipft = radscr(ibuff)%pft_array(il)
 
                   !------------------------------------------------------------------------!
                   !      Find the weight for leaves and branchwood.  This is a weighted    !
@@ -1081,43 +1118,41 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                   !------------------------------------------------------------------------!
                   wleaf_vis = sngloff ( ( clumping_factor(ipft)                            &
                                         * (1.d0 - leaf_scatter_vis(ipft))                  &
-                                        * LAI_array(il) )                                  &
+                                        * radscr(ibuff)%LAI_array(il) )                    &
                                       / ( clumping_factor(ipft)                            &
                                         * (1.d0 - leaf_scatter_vis(ipft))                  &
-                                        * LAI_array(il)                                    &
+                                        * radscr(ibuff)%LAI_array(il)                      &
                                         + (1.d0 - wood_scatter_vis(ipft))                  &
-                                        * WAI_array(il) ), tiny_offset )
+                                        * radscr(ibuff)%WAI_array(il) ), tiny_offset )
                   wleaf_nir = sngloff ( ( clumping_factor(ipft)                            &
                                         * (1.d0 - leaf_scatter_nir(ipft))                  &
-                                        * LAI_array(il) )                                  &
+                                        * radscr(ibuff)%LAI_array(il) )                    &
                                       / ( clumping_factor(ipft)                            &
                                         * (1.d0 - leaf_scatter_nir(ipft))                  &
-                                        * LAI_array(il)                                    &
+                                        * radscr(ibuff)%LAI_array(il)                      &
                                         + (1.d0 - wood_scatter_nir(ipft))                  &
-                                        * WAI_array(il) ), tiny_offset  )
-                  wleaf_tir = sngloff( ( leaf_emiss_tir(ipft) * LAI_array(il) )            &
-                                     / ( leaf_emiss_tir(ipft) * LAI_array(il)              &
-                                       + wood_emiss_tir(ipft) * WAI_array(il) )            &
+                                        * radscr(ibuff)%WAI_array(il) ), tiny_offset  )
+                  wleaf_tir = sngloff( ( leaf_emiss_tir(ipft) * radscr(ibuff)%LAI_array(il) ) &
+                                     / ( leaf_emiss_tir(ipft) * radscr(ibuff)%LAI_array(il)   &
+                                       + wood_emiss_tir(ipft) * radscr(ibuff)%WAI_array(il) ) &
                                      , tiny_offset )
                   wwood_vis = 1. - wleaf_vis
                   wwood_nir = 1. - wleaf_nir
                   wwood_tir = 1. - wleaf_tir
                   !------------------------------------------------------------------------!
 
-
-
-
-
                   !----- Find the near infrared absorption, so we average things properly. !
-                  nir_v_beam    = rshort_v_beam_array    (il) - par_v_beam_array    (il)
-                  nir_v_diffuse = rshort_v_diffuse_array (il) - par_v_diffuse_array (il)
+                  nir_v_beam    = radscr(ibuff)%rshort_v_beam_array    (il) -              &
+                                  radscr(ibuff)%par_v_beam_array    (il)
+                  nir_v_diffuse = radscr(ibuff)%rshort_v_diffuse_array (il) -              &
+                                  radscr(ibuff)%par_v_diffuse_array (il)
                   !------------------------------------------------------------------------!
 
 
                   !------------------------------------------------------------------------!
                   !    Light profile: we do not split into leaves and branches.            !
                   !------------------------------------------------------------------------!
-                  cpatch%rad_profile    (:,ico) = radprof_array(:,il)
+                  cpatch%rad_profile    (:,ico) = radscr(ibuff)%radprof_array(:,il)
                   !------------------------------------------------------------------------!
 
 
@@ -1125,30 +1160,36 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                   !    Split the layer radiation between leaf and branchwood.              !
                   !------------------------------------------------------------------------!
                   !------ Visible (PAR), only leaves need this (photsynthesis model). -----!
-                  cpatch%par_l_beam       (ico) = par_v_beam_array    (il) * wleaf_vis
-                  cpatch%par_l_diffuse    (ico) = par_v_diffuse_array (il) * wleaf_vis
+                  cpatch%par_l_beam       (ico) = radscr(ibuff)%par_v_beam_array(il) *     &
+                                                  wleaf_vis
+                  cpatch%par_l_diffuse    (ico) = radscr(ibuff)%par_v_diffuse_array(il) *  &
+                                                  wleaf_vis
                   !------ Total short wave radiation (PAR+NIR). ---------------------------!
-                  cpatch%rshort_l_beam    (ico) = par_v_beam_array    (il) * wleaf_vis     &
-                                                + nir_v_beam               * wleaf_nir
-                  cpatch%rshort_l_diffuse (ico) = par_v_diffuse_array (il) * wleaf_vis     &
-                                                + nir_v_diffuse            * wleaf_nir
-                  cpatch%rshort_w_beam    (ico) = par_v_beam_array    (il) * wwood_vis     &
-                                                + nir_v_beam               * wwood_nir
-                  cpatch%rshort_w_diffuse (ico) = par_v_diffuse_array (il) * wwood_vis     &
-                                                + nir_v_diffuse            * wwood_nir
+                  cpatch%rshort_l_beam    (ico) = radscr(ibuff)%par_v_beam_array    (il) * &
+                                                  wleaf_vis + nir_v_beam * wleaf_nir
+                  cpatch%rshort_l_diffuse (ico) = radscr(ibuff)%par_v_diffuse_array (il) * &
+                                                  wleaf_vis + nir_v_diffuse * wleaf_nir
+                  cpatch%rshort_w_beam    (ico) = radscr(ibuff)%par_v_beam_array    (il) * &
+                                                  wwood_vis + nir_v_beam * wwood_nir
+                  cpatch%rshort_w_diffuse (ico) = radscr(ibuff)%par_v_diffuse_array (il) * &
+                                                  wwood_vis + nir_v_diffuse * wwood_nir
                   !----- Thermal infra-red (long wave). -----------------------------------!
-                  cpatch%rlong_l          (ico) = lw_v_array          (il) * wleaf_tir
-                  cpatch%rlong_w          (ico) = lw_v_array          (il) * wwood_tir
+                  cpatch%rlong_l          (ico) = radscr(ibuff)%lw_v_array(il) * wleaf_tir
+                  cpatch%rlong_w          (ico) = radscr(ibuff)%lw_v_array(il) * wwood_tir
                   !------------------------------------------------------------------------!
 
-
                   !----- Save the light levels. -------------------------------------------!
-                  cpatch%light_level      (ico) = sngloff(light_level_array     (il)       &
+                  cpatch%light_level(ico)       = sngloff(radscr(ibuff)%light_level_array(il)            &
                                                          ,tiny_offset )
-                  cpatch%light_level_beam (ico) = sngloff(light_beam_level_array(il)       &
+                  cpatch%light_level_beam(ico)  = sngloff(radscr(ibuff)%light_beam_level_array(il)       &
                                                          ,tiny_offset )
-                  cpatch%light_level_diff (ico) = sngloff(light_diff_level_array(il)       &
+                  cpatch%light_level_diff(ico)  = sngloff(radscr(ibuff)%light_diff_level_array(il)       &
                                                          ,tiny_offset )
+
+                  cpatch%par_level_beam(ico)  = sngloff(radscr(ibuff)%par_level_beam(il),tiny_offset)
+                  cpatch%par_level_diffu(ico) = sngloff(radscr(ibuff)%par_level_diffu(il),tiny_offset)
+                  cpatch%par_level_diffd(ico) = sngloff(radscr(ibuff)%par_level_diffd(il),tiny_offset)
+
                   !------------------------------------------------------------------------!
                end if
                !---------------------------------------------------------------------------!
@@ -1170,13 +1211,12 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                !    Light profile: we do not split into leaves and branches.  Since this   !
                ! is a big leaf, we only save the values beneath the stack.                 !
                !---------------------------------------------------------------------------!
-               cpatch%rad_profile       (:,1) = radprof_array(:,1)
+               cpatch%rad_profile       (:,1) = radscr(ibuff)%radprof_array(:,1)
                !---------------------------------------------------------------------------!
 
 
-
                do il=1,cohort_count
-                  ipft = pft_array(il)
+                  ipft = radscr(ibuff)%pft_array(il)
 
                   !------------------------------------------------------------------------!
                   !      Find the weight for leaves and branchwood.  This is a weighted    !
@@ -1185,68 +1225,67 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
                   !------------------------------------------------------------------------!
                   wleaf_vis = sngloff ( ( clumping_factor(ipft)                            &
                                         * (1.d0 - leaf_scatter_vis(ipft))                  &
-                                        * LAI_array(il) )                                  &
+                                        * radscr(ibuff)%LAI_array(il) )                    &
                                       / ( clumping_factor(ipft)                            &
                                         * (1.d0 - leaf_scatter_vis(ipft))                  &
-                                        * LAI_array(il)                                    &
+                                        * radscr(ibuff)%LAI_array(il)                      &
                                         + (1.d0 - wood_scatter_vis(ipft))                  &
-                                        * WAI_array(il) ), tiny_offset )
+                                        * radscr(ibuff)%WAI_array(il) ), tiny_offset )
                   wleaf_nir = sngloff ( ( clumping_factor(ipft)                            &
                                         * (1.d0 - leaf_scatter_nir(ipft))                  &
-                                        * LAI_array(il) )                                  &
+                                        * radscr(ibuff)%LAI_array(il) )                    &
                                       / ( clumping_factor(ipft)                            &
                                         * (1.d0 - leaf_scatter_nir(ipft))                  &
-                                        * LAI_array(il)                                    &
+                                        * radscr(ibuff)%LAI_array(il)                      &
                                         + (1.d0 - wood_scatter_nir(ipft))                  &
-                                        * WAI_array(il) ), tiny_offset  )
-                  wleaf_tir = sngloff( ( leaf_emiss_tir(ipft) * LAI_array(il) )            &
-                                     / ( leaf_emiss_tir(ipft) * LAI_array(il)              &
-                                       + wood_emiss_tir(ipft) * WAI_array(il) )            &
+                                        * radscr(ibuff)%WAI_array(il) ), tiny_offset  )
+                  wleaf_tir = sngloff( ( leaf_emiss_tir(ipft) * radscr(ibuff)%LAI_array(il) ) &
+                                     / ( leaf_emiss_tir(ipft) * radscr(ibuff)%LAI_array(il)   &
+                                       + wood_emiss_tir(ipft) * radscr(ibuff)%WAI_array(il) ) &
                                      , tiny_offset    )
                   wwood_vis = 1. - wleaf_vis
                   wwood_nir = 1. - wleaf_nir
                   wwood_tir = 1. - wleaf_tir
                   !------------------------------------------------------------------------!
-
-
-
+            
 
 
                   !------------------------------------------------------------------------!
                   !     Find the near infrared absorption, so we average things            !
                   ! properly.                                                              !
                   !------------------------------------------------------------------------!
-                  nir_v_beam    = rshort_v_beam_array    (il) - par_v_beam_array    (il)
-                  nir_v_diffuse = rshort_v_diffuse_array (il) - par_v_diffuse_array (il)
+                  nir_v_beam    = radscr(ibuff)%rshort_v_beam_array(il) -                  &
+                                  radscr(ibuff)%par_v_beam_array(il)
+                  nir_v_diffuse = radscr(ibuff)%rshort_v_diffuse_array(il) -               &
+                                  radscr(ibuff)%par_v_diffuse_array(il)
                   !------------------------------------------------------------------------!
-
 
                   !------------------------------------------------------------------------!
                   !    Split the layer radiation between leaf and branchwood.              !
                   !------------------------------------------------------------------------!
                   !------ Visible (PAR), only leaves need this (photsynthesis model). -----!
-                  cpatch%par_l_beam       (1) = cpatch%par_l_beam       (1)                &
-                                              + par_v_beam_array       (il) * wleaf_vis
-                  cpatch%par_l_diffuse    (1) = cpatch%par_l_diffuse    (1)                &
-                                              + par_v_diffuse_array    (il) * wleaf_vis
+                  cpatch%par_l_beam       (1) = cpatch%par_l_beam(1)                       &
+                                              + radscr(ibuff)%par_v_beam_array(il)*wleaf_vis
+                  cpatch%par_l_diffuse    (1) = cpatch%par_l_diffuse(1)                    &
+                                              + radscr(ibuff)%par_v_diffuse_array(il)*wleaf_vis
                   !------ Total short wave radiation (PAR+NIR). ---------------------------!
-                  cpatch%rshort_l_beam    (1) = cpatch%rshort_l_beam    (1)                &
-                                              + par_v_beam_array       (il) * wleaf_vis    &
+                  cpatch%rshort_l_beam    (1) = cpatch%rshort_l_beam(1)                &
+                                              + radscr(ibuff)%par_v_beam_array(il)*wleaf_vis &
                                               + nir_v_beam                  * wleaf_nir
                   cpatch%rshort_l_diffuse (1) = cpatch%rshort_l_diffuse (1)                &
-                                              + par_v_diffuse_array    (il) * wleaf_vis    &
+                                              + radscr(ibuff)%par_v_diffuse_array    (il) * wleaf_vis    &
                                               + nir_v_diffuse               * wleaf_nir
                   cpatch%rshort_w_beam    (1) = cpatch%rshort_w_beam    (1)                &
-                                              + par_v_beam_array       (il) * wwood_vis    &
+                                              + radscr(ibuff)%par_v_beam_array       (il) * wwood_vis    &
                                               + nir_v_beam                  * wwood_nir
                   cpatch%rshort_w_diffuse (1) = cpatch%rshort_w_diffuse (1)                &
-                                              + par_v_diffuse_array    (il) * wwood_vis    &
+                                              + radscr(ibuff)%par_v_diffuse_array    (il) * wwood_vis    &
                                               + nir_v_diffuse               * wwood_nir
                   !----- Thermal infra-red (long wave). -----------------------------------!
                   cpatch%rlong_l          (1) = cpatch%rlong_l (1)                         &
-                                              + lw_v_array    (il) * wleaf_tir
+                                              + radscr(ibuff)%lw_v_array    (il) * wleaf_tir
                   cpatch%rlong_w          (1) = cpatch%rlong_w (1)                         &
-                                              + lw_v_array    (il) * wwood_tir
+                                              + radscr(ibuff)%lw_v_array    (il) * wwood_tir
                   !------------------------------------------------------------------------!
                end do
                !---------------------------------------------------------------------------!
@@ -1255,12 +1294,19 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
 
                !----- Save the light levels as the median level. --------------------------!
                il = ceiling(real(cohort_count)/2.0)
-               cpatch%light_level      (1) = sngloff(light_level_array     (il)            &
+               cpatch%light_level      (1) = sngloff(radscr(ibuff)%light_level_array     (il)            &
                                                       ,tiny_offset )
-               cpatch%light_level_beam (1) = sngloff(light_beam_level_array(il)            &
+               cpatch%light_level_beam (1) = sngloff(radscr(ibuff)%light_beam_level_array(il)            &
                                                       ,tiny_offset )
-               cpatch%light_level_diff (1) = sngloff(light_diff_level_array(il)            &
+               cpatch%light_level_diff (1) = sngloff(radscr(ibuff)%light_diff_level_array(il)            &
                                                       ,tiny_offset )
+
+               cpatch%par_level_beam(1)  = sngloff(radscr(ibuff)%par_level_beam(il),tiny_offset)
+               cpatch%par_level_diffu(1) = sngloff(radscr(ibuff)%par_level_diffu(il),tiny_offset)
+               cpatch%par_level_diffd(1) = sngloff(radscr(ibuff)%par_level_diffd(il),tiny_offset)
+
+
+
                !---------------------------------------------------------------------------!
             end if
             !------------------------------------------------------------------------------!
@@ -1268,7 +1314,8 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
          !---------------------------------------------------------------------------------!
 
       else
-         
+
+
          !----- This is the case where there is no vegetation. ----------------------------!
          downward_par_below_beam         = par_beam_norm
          downward_par_below_diffuse      = par_diff_norm
@@ -1291,8 +1338,10 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
          csite%albedo              (ipa) = upward_rshort_above_diffuse
          csite%rlongup             (ipa) = rlong - surface_netabs_longwave
          csite%rlong_albedo        (ipa) = csite%rlongup(ipa) / rlong
+
       end if
-      
+
+
       !----- Absorption rate of short wave by the soil. -----------------------------------!
       csite%rshort_g_beam   (ipa) = downward_par_below_beam    * abs_ground_par            &
                                   + downward_nir_below_beam    * abs_ground_nir
@@ -1308,7 +1357,6 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
       csite%nir_b_beam      (ipa) = downward_nir_below_beam
       csite%par_b_diffuse   (ipa) = downward_par_below_diffuse
       csite%nir_b_diffuse   (ipa) = downward_nir_below_diffuse
-
 
       !----- Absorption rate of short wave by the surface water. --------------------------!
       do k=1,csite%nlev_sfcwater(ipa)
@@ -1329,33 +1377,10 @@ subroutine sfcrad_ed(cosz,cosaoi,csite,mzg,mzs,ntext_soil,ncol_soil,maxcohort,tu
          csite%rlong_g (ipa) = 0.0
       end if
       !------------------------------------------------------------------------------------!
+
    end do
    !---------------------------------------------------------------------------------------!
-
-
-   !---------------------------------------------------------------------------------------!
-   !    Deallocate arrays.                                                                 !
-   !---------------------------------------------------------------------------------------!
-   deallocate (pft_array                 )
-   deallocate (leaf_temp_array           )
-   deallocate (wood_temp_array           )
-   deallocate (lai_array                 )
-   deallocate (wai_array                 )
-   deallocate (CA_array                  )
-   deallocate (htop_array                )
-   deallocate (hbot_array                )
-   deallocate (beam_level_array          )
-   deallocate (diff_level_array          )
-   deallocate (light_level_array         )
-   deallocate (light_beam_level_array    )
-   deallocate (light_diff_level_array    )
-   deallocate (par_v_beam_array          )
-   deallocate (rshort_v_beam_array       )
-   deallocate (par_v_diffuse_array       )
-   deallocate (rshort_v_diffuse_array    )
-   deallocate (lw_v_array                )
-   deallocate (radprof_array             )
-   !---------------------------------------------------------------------------------------!
+   !$OMP END PARALLEL DO
 
    return
 end subroutine sfcrad_ed
@@ -1562,6 +1587,7 @@ subroutine scale_ed_radiation(tuco,rshort,rshort_diffuse,rlong,nighttime,csite)
                                    , radfrq               & ! intent(in)
                                    , frqsum               ! ! intent(in)
    use canopy_radiation_coms, only : cosz_min             ! ! intent(in)
+   !$ use omp_lib
    implicit none
    !----- Arguments. ----------------------------------------------------------------------!
    type(sitetype)  , target     :: csite
@@ -1590,8 +1616,6 @@ subroutine scale_ed_radiation(tuco,rshort,rshort_diffuse,rlong,nighttime,csite)
    end if
    !---------------------------------------------------------------------------------------!
 
-
-
    !---------------------------------------------------------------------------------------!
    !     This block skips radiation.  Obviously this only makes sense for very theoretical !
    ! tests, because plants kind of like light...                                           !
@@ -1618,7 +1642,7 @@ subroutine scale_ed_radiation(tuco,rshort,rshort_diffuse,rlong,nighttime,csite)
                cpatch%rad_profile      (:,ico) = 0.0
             end if
          end do skip_cohortloop
-         
+
          csite%rshort_g_beam   (ipa) = 0.
          csite%rshort_g_diffuse(ipa) = 0.
          csite%rshort_g        (ipa) = 0.
@@ -1644,7 +1668,7 @@ subroutine scale_ed_radiation(tuco,rshort,rshort_diffuse,rlong,nighttime,csite)
             csite%par_s_diffuse   (k,ipa) = 0.
             csite%par_s           (k,ipa) = 0.
          end do 
-              
+
          csite%rlong_s(ipa)       = 0.
          csite%rlong_g(ipa)       = 0.
       end do skip_patchloop
@@ -1657,11 +1681,14 @@ subroutine scale_ed_radiation(tuco,rshort,rshort_diffuse,rlong,nighttime,csite)
    !---------------------------------------------------------------------------------------!
    !     For normal runs, we add the scale to radiation, and also integrate averages.      !
    !---------------------------------------------------------------------------------------!
+   !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(cpatch,ico,k)
+
    patchloop: do ipa = 1,csite%npatches
       cpatch => csite%patch(ipa)
+
       !----- Cohort-level variables. ------------------------------------------------------!
       cohortloop: do ico = 1,cpatch%ncohorts
-         
+
          if (cpatch%leaf_resolvable(ico) .or. cpatch%wood_resolvable(ico)) then
 
             cpatch%par_l_beam(ico)       = cpatch%par_l_beam(ico)    * rshort
@@ -1743,10 +1770,6 @@ subroutine scale_ed_radiation(tuco,rshort,rshort_diffuse,rlong,nighttime,csite)
       end do
       !------------------------------------------------------------------------------------!
 
-
-
-
-
       !------------------------------------------------------------------------------------!
       !      Integrate the mean radiation fluxes.  The average fluxes are normalised in    !
       ! average_utils.f90, at sub-routine normalize_averaged_vars.                         !
@@ -1774,6 +1797,16 @@ subroutine scale_ed_radiation(tuco,rshort,rshort_diffuse,rlong,nighttime,csite)
          cpatch%fmean_rlong_w           (ico) = cpatch%fmean_rlong_w           (ico)       &
                                               + cpatch%rlong_w                 (ico)       &
                                               * radfrq_o_frqsum
+
+         cpatch%fmean_par_level_beam    (ico) = cpatch%fmean_par_level_beam    (ico)       &
+                                              + cpatch%par_level_beam(ico) * radfrq_o_frqsum
+
+         cpatch%fmean_par_level_diffd   (ico) = cpatch%fmean_par_level_diffd   (ico)       &
+                                              + cpatch%par_level_diffd(ico) * radfrq_o_frqsum
+
+         cpatch%fmean_par_level_diffu   (ico) = cpatch%fmean_par_level_diffu   (ico)       &
+                                              + cpatch%par_level_diffu(ico) * radfrq_o_frqsum
+
          cpatch%fmean_light_level       (ico) = cpatch%fmean_light_level       (ico)       &
                                               + cpatch%light_level             (ico)       &
                                               * radfrq_o_frqsum
@@ -1851,6 +1884,8 @@ subroutine scale_ed_radiation(tuco,rshort,rshort_diffuse,rlong,nighttime,csite)
       !------------------------------------------------------------------------------------!
    end do patchloop
    !---------------------------------------------------------------------------------------!
+   !$OMP END PARALLEL DO
+
 
    return
 end subroutine scale_ed_radiation
@@ -1905,5 +1940,4 @@ subroutine angle_of_incid(aoi,cosz,solar_hour_aspect,slope,terrain_aspect)
 end subroutine angle_of_incid
 !==========================================================================================!
 !==========================================================================================!
-
 

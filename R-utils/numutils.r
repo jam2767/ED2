@@ -48,27 +48,40 @@ exp10 <<- function(x,...) 10^x
 #------------------------------------------------------------------------------------------#
 tobin <<- function(x,reverse=TRUE){
 
+   #----- X must be an integer, check it. -------------------------------------------------#
    if (! is.integer(x)){
-      stop ("x must be integer")
+      warning ("Function tobin: coercing x to an integer")
+      x = as.integer(x)
    }#end if
+   #---------------------------------------------------------------------------------------#
 
-   int2bin = function(x,reverse){
+
+
+   #----- Check whether this is a single element.  If not, use recursive call. ------------#
+   if (is.vector(x) && length(x) == 1){
+      #----- Paste bits. ------------------------------------------------------------------#
       if (reverse){
         ans = paste(sapply(strsplit(paste(rev(intToBits(x))),""),`[[`,2),collapse="")
       }else{
         ans = paste(sapply(strsplit(paste(intToBits(x)),""),`[[`,2),collapse="")
       }#end if
-      return(ans)
-   }#end if
+      #------------------------------------------------------------------------------------#
 
-   if (is.list(x)){
-      ans = sapply(X=x,FUN=int2bin,reverse=reverse)
-   }else if (is.null(dim(x))){
-      ans = sapply(X=x,FUN=int2bin,reverse=reverse,simplify=TRUE)
-   }else{
+   }else if (is.matrix(x) || is.array(x)){
+      #----- Array or matrix. -------------------------------------------------------------#
       margin = length(dim(x))
-      ans    = apply(X=x,MARGIN=sequence(margin),FUN=int2bin,reverse=reverse)
+      ans    = apply(X=x,MARGIN=sequence(margin),FUN=tobin,reverse=reverse)
+      #------------------------------------------------------------------------------------#
+   }else if (is.list(x)){
+      #----- List or data frame. ----------------------------------------------------------#
+      ans = sapply(X=x,FUN=tobin,reverse=reverse,simplify=is.data.frame(x))
+      #------------------------------------------------------------------------------------#
+   }else if (is.null(dim(x))){
+      #----- Vector. ----------------------------------------------------------------------#
+      ans = sapply(X=x,FUN=tobin,reverse=reverse,simplify=TRUE)
+      #------------------------------------------------------------------------------------#
    }#end if
+   #---------------------------------------------------------------------------------------#
    return(ans)
 }#end function tobin
 #==========================================================================================#
@@ -80,9 +93,33 @@ tobin <<- function(x,reverse=TRUE){
 
 #==========================================================================================#
 #==========================================================================================#
+#     This function finds the binary notation of an integer.                               #
+#------------------------------------------------------------------------------------------#
+rawtoint <<- function(x){
+
+   #----- Crash in case x is not raw. -----------------------------------------------------#
+   dummy = stopifnot (is.raw(x))
+   #---------------------------------------------------------------------------------------#
+
+
+
+   #----- Pack all elements. --------------------------------------------------------------#
+   ans   = as.integer(packBits(x))
+   return(ans)
+   #---------------------------------------------------------------------------------------#
+}#end function rawtoint
+#==========================================================================================#
+#==========================================================================================#
+
+
+
+
+
+#==========================================================================================#
+#==========================================================================================#
 #     This function computes the mean of the elements below (above) a given quantile.      #
 #------------------------------------------------------------------------------------------#
-qu.mean = function(x,p,na.rm=FALSE,lower=TRUE){
+qu.mean <<- function(x,p,na.rm=FALSE,lower=TRUE){
    if (na.rm) x = x[! is.na(x)]
 
    #----- Do the calculation only if there is anything left. ------------------------------#
@@ -113,7 +150,7 @@ qu.mean = function(x,p,na.rm=FALSE,lower=TRUE){
 # sample.  If the size of the resampling is not provided, then the number of samples is    #
 # dependent on the range of probabilities.  By default we find the 0.50 quantile (median). #
 #------------------------------------------------------------------------------------------#
-weighted.quantile = function(x,w,qu=0.50,size.minp=10,na.rm=FALSE){
+weighted.quantile <<- function(x,w,qu=0.50,size.minp=10,na.rm=FALSE){
 
    #----- Delete the missing values if the user asked to do it. ---------------------------#
    if (any(w <= 0, na.rm = TRUE) || any(is.infinite(w)) || any(is.na(w))){
@@ -180,6 +217,47 @@ weighted.quantile = function(x,w,qu=0.50,size.minp=10,na.rm=FALSE){
 #==========================================================================================#
 #==========================================================================================#
 
+
+
+
+
+
+#==========================================================================================#
+#==========================================================================================#
+#     This function estimates the weighted standard deviation.                             #
+#------------------------------------------------------------------------------------------#
+weighted.sd <<- function(x,w,na.rm=FALSE){
+
+   #----- Delete the missing values if the user asked to do it. ---------------------------#
+   if (any(w < 0, na.rm = TRUE) || any(is.infinite(w)) || any(is.na(w))){
+      stop(" Weights (w) must be non-negative and finite, and entirely defined!")
+   }else if(na.rm){
+      keep = ! is.na(x)
+      x    = x[keep]
+      w    = w[keep]
+   }#end if
+   #---------------------------------------------------------------------------------------#
+
+
+
+   #---------------------------------------------------------------------------------------#
+   #      Check whether at least one weight is non-zero.                                   #
+   #---------------------------------------------------------------------------------------#
+   if (all(w %==% 0)){
+      ans = NA
+   }else{
+      xwm    = weighted.mean(x=x,w=w)
+      M      = sum(w %>% 0)
+      w.sum  = sum(w)
+      r2.sum = sum(w*(x-xwm)^2)
+      ans    = sqrt(M * r2.sum / ( (M-1) * w.sum))
+   }#end if
+   #---------------------------------------------------------------------------------------#
+
+   return(ans)
+}#end function weighted.sd
+#==========================================================================================#
+#==========================================================================================#
 
 
 
@@ -325,7 +403,7 @@ kurt <<- function (x, na.rm = FALSE){
 
 
 
-      #----- Find the skewness. -----------------------------------------------------------#
+      #----- Find the kurtosis. -----------------------------------------------------------#
       nx = length(xx)
       xx.mean = mean(xx)
       xx.sdev = sd(xx)
@@ -336,6 +414,58 @@ kurt <<- function (x, na.rm = FALSE){
 
    return(ans)
 }#end function kurt
+#==========================================================================================#
+#==========================================================================================#
+
+
+
+
+
+#==========================================================================================#
+#==========================================================================================#
+#     This function computes the inter-quartile range.                                     #
+#------------------------------------------------------------------------------------------#
+iqr <<- function (x, na.rm = FALSE){
+
+   #---- We follow the same convention as the standard deviation. -------------------------#
+   if (is.matrix(x)) {
+      msg = "iqr(<matrix>) is deprecated.\n Use apply(*, 2, kurt) instead."
+      warning(paste(msg, collapse = ""), call. = FALSE, domain = NA)
+      ans = apply(X = x, MARGIN = 2, FUN = iqr, na.rm = na.rm)
+   }else if (is.list(x)){
+      msg = "iqr(<list>) is deprecated.\n Use lapply(*, kurt) instead."
+      warning(paste(msg, collapse = ""), call. = FALSE, domain = NA)
+      ans = lapply(X = x, FUN = iqr, na.rm = na.rm)
+   }else if (is.data.frame(x)){
+      msg = "iqr(<data.frame>) is deprecated.\n Use sapply(*, kurt) instead."
+      warning(paste(msg, collapse = ""), call. = FALSE, domain = NA)
+      ans = sapply(X = x, iqr, na.rm = na.rm)
+   }else{
+      #----- Coerce x to a vector. --------------------------------------------------------#
+      if (is.vector(x)){
+         xx = x
+      }else{
+         xx = as.vector(x)
+      }#end if
+      #------------------------------------------------------------------------------------#
+
+
+
+      #----- Decide whether to delete NA or not. ------------------------------------------#
+      if (na.rm) xx = xx[! is.na(xx)]
+      #------------------------------------------------------------------------------------#
+
+
+
+      #----- Find the inter-quartile range. -----------------------------------------------#
+      ans        = diff(quantile(xx,probs=c(0.25,0.75)))
+      names(ans) = NULL
+      #------------------------------------------------------------------------------------#
+   }#end if
+   #---------------------------------------------------------------------------------------#
+
+   return(ans)
+}#end function iqr
 #==========================================================================================#
 #==========================================================================================#
 
@@ -489,23 +619,6 @@ lit.sample <<- function(x,size,replace=FALSE,prob=NULL){
    }else{
       ans = sample(x,size,replace,prob)
    }#end if
-   return(ans)
-}#end function lit.sample
-#==========================================================================================#
-#==========================================================================================#
-
-
-
-
-
-
-#==========================================================================================#
-#==========================================================================================#
-#     This function creates a sequence of integers that has the same length as the length  #
-# of the argument.                                                                         #
-#------------------------------------------------------------------------------------------#
-seq.len <<- function(x){
-   ans = sequence(length(x))
    return(ans)
 }#end function lit.sample
 #==========================================================================================#
@@ -755,7 +868,39 @@ percentil <<- function(x,trim=0.0){
 #------------------------------------------------------------------------------------------#
 sum2           <<- function(x,...)   sqrt(x = sum          (x=x^2               ,...))
 mean2          <<- function(x,...)   sqrt(x = mean         (x=x^2               ,...))
+meanlog        <<- function(x,...)   exp (x = mean         (x=log(x)            ,...))
 weighted.mean2 <<- function(x,w,...) sqrt(x = weighted.mean(x=x^2,w=(w/sum(w))^2,...))
+#==========================================================================================#
+#==========================================================================================#
+
+
+
+
+
+
+#==========================================================================================#
+#==========================================================================================#
+#     Safe versions of common functions, which only uses finite numbers, and return either #
+# finite answers of NA.                                                                    #
+#------------------------------------------------------------------------------------------#
+#------ Mean. -----------------------------------------------------------------------------#
+mean.safe <<- function(x){
+   ans = mean(x,na.rm=TRUE)
+   if (! is.finite(ans)) ans = NA
+   return(ans)
+}#end if
+#------ Median. ---------------------------------------------------------------------------#
+median.safe <<- function(x){
+   ans = median(x,na.rm=TRUE)
+   if (! is.finite(ans)) ans = NA
+   return(ans)
+}#end if
+#------ Standard deviation. ---------------------------------------------------------------#
+sd.safe <<- function(x){
+   ans = sd(x,na.rm=TRUE)
+   if (! is.finite(ans)) ans = NA
+   return(ans)
+}#end if
 #==========================================================================================#
 #==========================================================================================#
 
@@ -992,5 +1137,49 @@ eddy.cov <<- function(x,y,...){
    eddy   = mean(xprime*yprime,...)
    return(eddy)
 }#end function eddy.cov
+#==========================================================================================#
+#==========================================================================================#
+
+
+
+
+
+
+#==========================================================================================#
+#==========================================================================================#
+#     Function to find neat breaks given the resolution.                                   # 
+#------------------------------------------------------------------------------------------#
+neat.breaks <<- function(x,res,...){
+   bad = 0
+   #----- Make sure that x is a vector with contents. -------------------------------------#
+   if ((! is.vector(x)) || (! is.numeric(x)) || length(x) < 2){
+      cat("x must be a numeric vector of length 2 (or greater)!","\n",sep="")
+      bad = bad + 1
+   }else{
+      #----- Remove infinite/NA entries. --------------------------------------------------#
+      x = x[is.finite(x)]
+      if (length(x) < 2){
+         cat("x must contain at least 2 finite values!","\n",sep="")
+         bad = bad + 1
+      }#end if
+      #------------------------------------------------------------------------------------#
+   }#end if
+   #----- Make sure that res is a simple scalar. ------------------------------------------#
+   if ((! is.vector(res)) || (! is.numeric(res)) || length(res) != 1){
+      cat("res must be a numeric scalar!","\n",sep="")
+      bad = bad + 1
+      if (res <= 0){
+         cat("res must be positive!","\n",sep="")
+         bad = bad + 1
+      }#end if
+   }#end if
+   if (bad > 0) stop(" x and/or res are invalid!")
+   #---------------------------------------------------------------------------------------#
+
+   xrange   = range(x,finite=TRUE)
+   xextreme = c(floor(xrange[1]/res),ceiling(xrange[2]/res)) * res
+   breaks   = seq(from=xextreme[1],to=xextreme[2],by=res)
+   return(breaks)
+}#end function neat.breaks
 #==========================================================================================#
 #==========================================================================================#
